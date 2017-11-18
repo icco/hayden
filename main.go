@@ -27,6 +27,18 @@ func getLinks(uri *url.URL) []string {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		// If URI is just a fragment or a path, fix links based off of the paged
+		// they were on. Won't work for relative links I think...
+		if parsedUri.Host == "" {
+			parsedUri.Host = uri.Host
+			parsedUri.Scheme = uri.Scheme
+		}
+		if parsedUri.Path == "" {
+			parsedUri.Path = "/"
+		}
+
+		// Add to final set.
 		s.Add(parsedUri.String())
 	})
 
