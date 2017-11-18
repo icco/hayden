@@ -6,36 +6,41 @@ import (
 	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
+	"gopkg.in/fatih/set.v0"
 )
 
-func linkScrape(uri *url.URL) {
+func getLinks(uri *url.URL) []string {
+	s := set.New()
+	s.Add(uri.String())
+
 	doc, err := goquery.NewDocument(uri.String())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// use CSS selector found with the browser inspector
-	// for each, use index and item
 	doc.Find("body a").Each(func(index int, item *goquery.Selection) {
 		linkTag := item
 		link, _ := linkTag.Attr("href")
-		linkText := linkTag.Text()
-		fmt.Printf("Link #%d: '%s' - '%s'\n", index, linkText, link)
+		log.Printf("%d: %s", index, link)
+
+		parsedUri, err := url.Parse(link)
+		if err != nil {
+			log.Fatal(err)
+		}
+		s.Add(parsedUri.String())
 	})
+
+	return set.StringSlice(s)
 }
 
 func main() {
-	u, err := url.Parse("https://natwelch.com")
+	u, err := url.Parse("https://theintercept.com")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	linkScrape(u)
-
-	u, err = url.Parse("https://theintercept.com")
-	if err != nil {
-		log.Fatal(err)
+	urls := getLinks(u)
+	for _, v := range urls {
+		fmt.Println(v)
 	}
-
-	linkScrape(u)
 }
