@@ -31,4 +31,11 @@ func main() {
 	}
 
 	linkScrape(u)
+
+	u, err = url.Parse("https://theintercept.com")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	linkScrape(u)
 }
