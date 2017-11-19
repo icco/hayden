@@ -22,9 +22,9 @@ page links to to Internet Archive.
 		os.Exit(1)
 	}
 
-	link := ParseLink(os.Args[1], nil)
+	link := hayden.ParseLink(os.Args[1], nil)
 
-	urls := GetLinks(link)
+	urls := hayden.GetLinks(link)
 	for _, v := range urls {
 		fmt.Println(v)
 	}
