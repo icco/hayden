@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 
 	"github.com/PuerkitoBio/goquery"
 	"gopkg.in/fatih/set.v0"
 )
 
-func getLinks(uri *url.URL) []string {
+// Given a url, scrapes and grabs all things linked with an anchor tag. It
+// returns those in a list of unique strings.
+func GetLinks(baseUri *url.URL) []string {
 	s := set.New()
-	s.Add(uri.String())
+	s.Add(baseUri.String())
 
-	doc, err := goquery.NewDocument(uri.String())
+	doc, err := goquery.NewDocument(baseUri.String())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -23,35 +26,61 @@ func getLinks(uri *url.URL) []string {
 		link, _ := linkTag.Attr("href")
 		log.Printf("%d: %s", index, link)
 
-		parsedUri, err := url.Parse(link)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		// If URI is just a fragment or a path, fix links based off of the paged
-		// they were on. Won't work for relative links I think...
-		if parsedUri.Host == "" {
-			parsedUri.Host = uri.Host
-			parsedUri.Scheme = uri.Scheme
-		}
-		if parsedUri.Path == "" {
-			parsedUri.Path = "/"
-		}
-
 		// Add to final set.
-		s.Add(parsedUri.String())
+		s.Add(ParseLink(link, baseUri).String())
 	})
 
 	return set.StringSlice(s)
 }
 
-func main() {
-	u, err := url.Parse("https://theintercept.com")
+// Given a uri string, return a nicely filled out URL. If context is provided,
+// we'll parse this link in relation to that.
+//
+// For example if `u` is just a path, and context is a normal URI, we'll copy
+// the host and scheme over from context.
+func ParseLink(u string, context *url.URL) *url.URL {
+	parsedUri, err := url.Parse(u)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("%+v", err)
 	}
 
-	urls := getLinks(u)
+	if context != nil {
+		// If URI is just a fragment or a path, fix links based off of the paged
+		// they were on. Won't work for relative links I think...
+		if parsedUri.Host == "" {
+			parsedUri.Host = context.Host
+			parsedUri.Scheme = context.Scheme
+		}
+	}
+
+	if parsedUri.Scheme == "" {
+		parsedUri.Scheme = "http"
+	}
+
+	if parsedUri.Path == "" {
+		parsedUri.Path = "/"
+	}
+
+	return parsedUri
+}
+
+func main() {
+
+	if len(os.Args) < 2 {
+		fmt.Println(`
+hayden: Link archiver.
+
+  usage: hayden http://example.com
+
+Pass in one link, and hayden will scrape it and submit it and everything the
+page links to to Internet Archive.
+`)
+		os.Exit(1)
+	}
+
+	link := ParseLink(os.Args[1], nil)
+
+	urls := GetLinks(link)
 	for _, v := range urls {
 		fmt.Println(v)
 	}
