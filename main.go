@@ -1,3 +1,4 @@
+// A tool and set of functions for archiving links in a page.
 package main
 
 import (
