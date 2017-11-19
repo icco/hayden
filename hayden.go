@@ -2,9 +2,11 @@
 package hayden
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"gopkg.in/fatih/set.v0"
@@ -68,18 +70,32 @@ func ParseLink(u string, context *url.URL) *url.URL {
 //
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
-func SaveLink(toSave string) error {
+func SaveLink(toSave string) (string, error) {
 	iaUrl := fmt.Sprintf("https://web.archive.org/save/%s", toSave)
 
-	rs, err := http.Get(iaUrl)
+	// Create custom client because IA returns 30x if there has been a recent
+	// snapshot, and it is a redirect loop.
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	rs, err := client.Get(iaUrl)
 	if err != nil {
-		log.Printf("Error while archiving: %+v", err)
-		return err
+		log.Printf("Error while archiving %s: %+v", iaUrl, err)
+		return "", err
 	}
 	defer rs.Body.Close()
 
-	log.Printf("Response Status (%s): %+v", iaUrl, rs.Status)
-	log.Printf("Response Headers (%s): %+v", iaUrl, rs.Header)
+	parsedIaUrl, err := url.Parse(iaUrl)
+	if err != nil {
+		log.Printf("Error while parsing %s: %+v", iaUrl, err)
+		return "", err
+	}
+	savedLocation := ParseLink(strings.Join(rs.Header["Content-Location"], ""), parsedIaUrl)
 
-	return nil
+	log.Printf("Response Status (%s): %+v", iaUrl, rs.Status)
+
+	return savedLocation.String(), nil
 }
