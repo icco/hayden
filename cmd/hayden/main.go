@@ -27,5 +27,6 @@ page links to to Internet Archive.
 	urls := hayden.GetLinks(link)
 	for _, v := range urls {
 		fmt.Println(v)
+		hayden.SaveLink(v)
 	}
 }

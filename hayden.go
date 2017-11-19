@@ -3,6 +3,7 @@ package hayden
 
 import (
 	"log"
+	"net/http"
 	"net/url"
 
 	"github.com/PuerkitoBio/goquery"
@@ -61,4 +62,24 @@ func ParseLink(u string, context *url.URL) *url.URL {
 	}
 
 	return parsedUri
+}
+
+// This takes a single link and submits it to the Internet Archive for storage.
+//
+// NOTE: We assume the passed in link has already been made a nice and properly
+// formatted HTTP or HTTPS url. If it has not, this will fail.
+func SaveLink(toSave string) error {
+	iaUrl := fmt.Sprintf("https://web.archive.org/save/%s", toSave)
+
+	rs, err := http.Get(iaUrl)
+	if err != nil {
+		log.Printf("Error while archiving: %+v", err)
+		return err
+	}
+	defer rs.Body.Close()
+
+	log.Printf("Response Status (%s): %+v", iaUrl, rs.Status)
+	log.Printf("Response Headers (%s): %+v", iaUrl, rs.Header)
+
+	return nil
 }
