@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/icco/hayden"
@@ -26,7 +27,11 @@ page links to to Internet Archive.
 
 	urls := hayden.GetLinks(link)
 	for _, v := range urls {
-		fmt.Println(v)
-		hayden.SaveLink(v)
+		log.Println(v)
+		links, err := hayden.SaveLink(v)
+		if err != nil {
+			log.Fatalf("%+v", err)
+		}
+		log.Printf("%+v", links)
 	}
 }
