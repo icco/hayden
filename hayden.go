@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"gopkg.in/fatih/set.v0"
@@ -98,9 +99,16 @@ func SaveLink(toSave string) ([]string, error) {
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
 func SaveToArchiveIs(toSave string) (string, error) {
+	now := time.Now()
 	aUrl := fmt.Sprintf("https://archive.is/submit/")
 
-	rs, err := http.PostForm(aUrl, url.Values{
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	rs, err := client.PostForm(aUrl, url.Values{
 		"url":      {toSave},
 		"submitid": {RandomString(65)},
 	})
@@ -110,17 +118,11 @@ func SaveToArchiveIs(toSave string) (string, error) {
 	}
 	defer rs.Body.Close()
 
-	parsedAUrl, err := url.Parse(aUrl)
-	if err != nil {
-		log.Printf("Error while parsing %s: %+v", aUrl, err)
-		return "", err
-	}
-
-	log.Printf("Parsed URL (%s): %+v", aUrl, parsedAUrl)
 	log.Printf("Response Status (%s): %+v", aUrl, rs.Status)
-	log.Printf("Response Headers (%s): %+v", aUrl, rs.Header)
 
-	return "", nil
+	archiveUrl := fmt.Sprintf("https://archive.is/%s/%s", now.Format("200601021504"), toSave)
+
+	return archiveUrl, nil
 }
 
 // This takes a single link and submits it to the Internet Archive for storage.
