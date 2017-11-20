@@ -98,6 +98,9 @@ func SaveLink(toSave string) ([]string, error) {
 //
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
+//
+// NOTE: This functionality is currently broken, it will not save a new
+// snapshot if one has ever been made.
 func SaveToArchiveIs(toSave string) (string, error) {
 	now := time.Now()
 	aUrl := fmt.Sprintf("https://archive.is/submit/")
