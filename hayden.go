@@ -90,7 +90,7 @@ func SaveLink(toSave string) ([]string, error) {
 		return nil, err
 	}
 
-	return []string{iaUrl, aUrl}
+	return []string{iaUrl, aUrl}, nil
 }
 
 // This takes a single link and submits it to Archive.is for storage.
@@ -100,7 +100,7 @@ func SaveLink(toSave string) ([]string, error) {
 func SaveToArchiveIs(toSave string) (string, error) {
 	aUrl := fmt.Sprintf("https://archive.is/submit/")
 
-	rs, err := http.PostForm(aUrl, aurl.Values{
+	rs, err := http.PostForm(aUrl, url.Values{
 		"url":      {toSave},
 		"submitid": {RandomString(65)},
 	})
@@ -127,7 +127,7 @@ func SaveToArchiveIs(toSave string) (string, error) {
 //
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
-func SaveToInternetArchvive(toSave string) (string, error) {
+func SaveToInternetArchive(toSave string) (string, error) {
 	iaUrl := fmt.Sprintf("https://web.archive.org/save/%s", toSave)
 
 	// Create custom client because IA returns 30x if there has been a recent
