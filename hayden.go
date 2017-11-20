@@ -66,11 +66,41 @@ func ParseLink(u string, context *url.URL) *url.URL {
 	return parsedUri
 }
 
+func SaveLink(toSave string) (string, error) {
+
+}
+
+// This takes a single link and submits it to Archive.is for storage.
+//
+// NOTE: We assume the passed in link has already been made a nice and properly
+// formatted HTTP or HTTPS url. If it has not, this will fail.
+func SaveToArchiveIs(toSave string) (string, error) {
+	aUrl := fmt.Sprintf("https://archive.today/?run=1&url=%s", toSave)
+
+	rs, err := http.Get(aUrl)
+	if err != nil {
+		log.Printf("Error while archiving %s: %+v", aUrl, err)
+		return "", err
+	}
+	defer rs.Body.Close()
+
+	parsedAUrl, err := url.Parse(aUrl)
+	if err != nil {
+		log.Printf("Error while parsing %s: %+v", aUrl, err)
+		return "", err
+	}
+	savedLocation := ParseLink(strings.Join(rs.Header["Content-Location"], ""), parsedAUrl)
+
+	log.Printf("Response Status (%s): %+v", aUrl, rs.Status)
+
+	return savedLocation.String(), nil
+}
+
 // This takes a single link and submits it to the Internet Archive for storage.
 //
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
-func SaveLink(toSave string) (string, error) {
+func SaveToInternetArchvive(toSave string) (string, error) {
 	iaUrl := fmt.Sprintf("https://web.archive.org/save/%s", toSave)
 
 	// Create custom client because IA returns 30x if there has been a recent
