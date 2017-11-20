@@ -4,6 +4,7 @@ package hayden
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,8 +67,30 @@ func ParseLink(u string, context *url.URL) *url.URL {
 	return parsedUri
 }
 
-func SaveLink(toSave string) (string, error) {
+func RandomString(n int) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Int63()%int64(len(letterBytes))]
+	}
+	return string(b)
+}
+
+// A wrapper around SaveToArchiveIs and SaveToInternetArchive.
+func SaveLink(toSave string) ([]string, error) {
+
+	iaUrl, err := SaveToInternetArchive(toSave)
+	if err != nil {
+		return nil, err
+	}
+
+	aUrl, err := SaveToArchiveIs(toSave)
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{iaUrl, aUrl}
 }
 
 // This takes a single link and submits it to Archive.is for storage.
@@ -75,9 +98,12 @@ func SaveLink(toSave string) (string, error) {
 // NOTE: We assume the passed in link has already been made a nice and properly
 // formatted HTTP or HTTPS url. If it has not, this will fail.
 func SaveToArchiveIs(toSave string) (string, error) {
-	aUrl := fmt.Sprintf("https://archive.today/?run=1&url=%s", toSave)
+	aUrl := fmt.Sprintf("https://archive.is/submit/")
 
-	rs, err := http.Get(aUrl)
+	rs, err := http.PostForm(aUrl, aurl.Values{
+		"url":      {toSave},
+		"submitid": {RandomString(65)},
+	})
 	if err != nil {
 		log.Printf("Error while archiving %s: %+v", aUrl, err)
 		return "", err
@@ -89,11 +115,12 @@ func SaveToArchiveIs(toSave string) (string, error) {
 		log.Printf("Error while parsing %s: %+v", aUrl, err)
 		return "", err
 	}
-	savedLocation := ParseLink(strings.Join(rs.Header["Content-Location"], ""), parsedAUrl)
 
+	log.Printf("Parsed URL (%s): %+v", aUrl, parsedAUrl)
 	log.Printf("Response Status (%s): %+v", aUrl, rs.Status)
+	log.Printf("Response Headers (%s): %+v", aUrl, rs.Header)
 
-	return savedLocation.String(), nil
+	return "", nil
 }
 
 // This takes a single link and submits it to the Internet Archive for storage.
