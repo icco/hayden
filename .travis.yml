@@ -1,13 +1,15 @@
 language: go
-
 go:
   - "1.x"
-  - master
-
+sudo: required
+services:
+  - docker
 before_install:
   - go get -u github.com/golang/lint/golint
-
 script:
   - golint -set_exit_status ./...
   - go test ./...
-
+  - go build ./cmd/hayden
+  - go build ./cmd/haydend
+  - docker build cmd/hayden/Dockerfile
+  - docker build cmd/haydend/Dockerfile
