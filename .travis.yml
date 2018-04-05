@@ -11,5 +11,5 @@ script:
   - go test ./...
   - go build ./cmd/hayden
   - go build ./cmd/haydend
-  - docker build cmd/hayden/Dockerfile
-  - docker build cmd/haydend/Dockerfile
+  - docker build cmd/hayden/
+  - docker build cmd/haydend/
