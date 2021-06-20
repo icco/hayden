@@ -35,7 +35,7 @@ func main() {
 	}
 	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
 
-	cfg := &hayden.Config{Log: log}
+	//cfg := &hayden.Config{Log: log}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
