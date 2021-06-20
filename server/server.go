@@ -8,14 +8,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/icco/cron"
 	"github.com/icco/gutil/logging"
 	"github.com/icco/hayden"
 	"go.uber.org/zap"
 )
 
 var (
-	log = logging.Must(logging.NewLogger(cron.Service))
+	log = logging.Must(logging.NewLogger(hayden.Service))
 
 	rootTmpl = `
 <html>
