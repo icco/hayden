@@ -24,7 +24,7 @@ func (cfg *Config) Find(ctx context.Context, target url.URL, search string) (boo
 	var htmlContent string
 	if err := chromedp.Run(
 		tctx,
-		chromedp.Navigate(target),
+		chromedp.Navigate(target.String()),
 		chromedp.WaitVisible(`body`),
 		chromedp.InnerHTML(`body`, &htmlContent, chromedp.ByJSPath),
 	); err != nil {
