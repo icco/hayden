@@ -1,6 +1,8 @@
 package main
 
 import (
+	_ "embed"
+
 	"fmt"
 	"html/template"
 	"net/http"
@@ -26,6 +28,9 @@ var (
 </body>
 </html>
 `
+
+	//go:embed config.json
+	configFile []byte
 )
 
 func main() {
@@ -35,15 +40,18 @@ func main() {
 	}
 	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
 
-	//cfg := &hayden.Config{Log: log}
+	cf, err := hayden.ParseConfigFile(configFile)
+	if err != nil {
+		log.Fatalw("could not parse config file", "configfile", configFile, zap.Error(err))
+	}
+	cf.Config.Log = log
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(logging.Middleware(log.Desugar(), "icco-cloud"))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte("ok."))
-		if err != nil {
+		if _, err := w.Write([]byte("ok.")); err != nil {
 			log.Errorw("could not write response", zap.Error(err))
 		}
 	})
@@ -56,6 +64,16 @@ func main() {
 
 		if err := tmpl.Execute(w, nil); err != nil {
 			log.Errorw("could not write response", zap.Error(err))
+		}
+
+		if _, err := w.Write([]byte("ok.")); err != nil {
+			log.Errorw("could not write response", zap.Error(err))
+		}
+	})
+
+	r.Get("/force", func(w http.ResponseWriter, r *http.Request) {
+		if err := cf.ScrapeTargets(r.Context()); err != nil {
+			log.Errorw("could not scrape", zap.Error(err))
 		}
 	})
 
