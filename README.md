@@ -1,5 +1,6 @@
 # hayden
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/icco/hayden)](https://goreportcard.com/report/github.com/icco/hayden)
 [![GoDoc](https://godoc.org/github.com/icco/hayden?status.svg)](https://godoc.org/github.com/icco/hayden)
 [![Build Status](https://travis-ci.com/icco/hayden.svg?branch=main)](https://travis-ci.com/icco/hayden)
 
