@@ -3,7 +3,6 @@ package hayden
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"go.uber.org/zap"
 )
@@ -32,7 +31,8 @@ func (cf *ConfigFile) ScrapeTargets(ctx context.Context) error {
 	for _, t := range cf.Targets {
 		match, err := t.Scan(ctx, cf.Config)
 		if err != nil {
-			return fmt.Errorf("error on target %+v: %w", t, err)
+			cf.Config.Log.Errorw("error on target", "target", t, zap.Error(err))
+			continue
 		}
 
 		if match {

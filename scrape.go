@@ -18,7 +18,7 @@ func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bo
 	)
 	defer ccancel()
 
-	tctx, tcancel := context.WithTimeout(cctx, 15*time.Second)
+	tctx, tcancel := context.WithTimeout(cctx, 150*time.Second)
 	defer tcancel()
 
 	var htmlContent string
