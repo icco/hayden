@@ -12,7 +12,6 @@ import (
 )
 
 func Find(ctx context.Context, target url.URL, searchRegexp string) (bool, error) {
-	// create chrome instance
 	cctx, ccancel := chromedp.NewContext(
 		ctx,
 		chromedp.WithLogf(log.Printf),
