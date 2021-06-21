@@ -11,7 +11,7 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
-func (cfg *Config) Find(ctx context.Context, target url.URL, search string) (bool, error) {
+func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bool, error) {
 	cctx, ccancel := chromedp.NewContext(
 		ctx,
 		chromedp.WithLogf(cfg.Log.Debugf),
@@ -31,14 +31,16 @@ func (cfg *Config) Find(ctx context.Context, target url.URL, search string) (boo
 		return false, fmt.Errorf("chrome error: %w", err)
 	}
 
-	return scanHTMLContent(ctx, htmlContent, search)
+	return cfg.scanHTMLContent(ctx, htmlContent, search)
 }
 
-func scanHTMLContent(ctx context.Context, html string, search string) (bool, error) {
+func (cfg *Config) scanHTMLContent(ctx context.Context, html string, search string) (bool, error) {
 	dom, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return false, err
 	}
+
+	cfg.Log.Debugw("all text", "text", dom.Text())
 
 	return false, fmt.Errorf("not implemented")
 }

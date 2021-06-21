@@ -29,5 +29,16 @@ func ParseConfigFile(stream []byte) (*ConfigFile, error) {
 }
 
 func (cf *ConfigFile) ScrapeTargets(ctx context.Context) error {
-	return fmt.Errorf("not implemented")
+	for _, t := range cf.Targets {
+		match, err := t.Scan(ctx, cf.Config)
+		if err != nil {
+			return fmt.Errorf("error on target %+v: %w", t, err)
+		}
+
+		if match {
+			cf.Config.Log.Infow("success on scan", "target", t)
+		}
+	}
+
+	return nil
 }
