@@ -5,6 +5,13 @@
   },
   "targets": [
     {
+      "url": "https://example.com",
+      "text": "Example",
+      "invert": false,
+      "hook": "https://example.com",
+      "period": 1800
+    },
+    {
       "url": "https://direct.playstation.com/en-us/consoles/console/playstation5-digital-edition-console.3005817",
       "text": "Out of Stock",
       "invert": true
