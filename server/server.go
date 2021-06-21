@@ -1,8 +1,8 @@
 package main
 
 import (
+	"context"
 	_ "embed"
-
 	"fmt"
 	"html/template"
 	"net/http"
@@ -72,8 +72,14 @@ func main() {
 	})
 
 	r.Get("/force", func(w http.ResponseWriter, r *http.Request) {
-		if err := cf.ScrapeTargets(r.Context()); err != nil {
-			log.Errorw("could not scrape", zap.Error(err))
+		go func() {
+			if err := cf.ScrapeTargets(context.Background()); err != nil {
+				log.Errorw("could not scrape", zap.Error(err))
+			}
+		}()
+
+		if _, err := w.Write([]byte("ok.")); err != nil {
+			log.Errorw("could not write response", zap.Error(err))
 		}
 	})
 
