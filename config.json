@@ -1,0 +1,23 @@
+{
+  "config": {
+    "default-hook": "https://relay.natwelch.com/hook",
+    "default-period": 300
+  },
+  "targets": [
+    {
+      "url": "https://direct.playstation.com/en-us/consoles/console/playstation5-digital-edition-console.3005817",
+      "text": "Out of Stock",
+      "invert": true
+    },
+    {
+      "url": "https://www.amazon.com/dp/B08FC6MR62/?coliid=I2WZ8054DDRGEH&colid=28AUSNNWTFJU9&psc=0&ref_=lv_ov_lig_dp_it",
+      "text": "Currently unavailable.",
+      "invert": true
+    },
+    {
+      "url": "https://www.bestbuy.com/site/sony-playstation-5-digital-edition-console/6430161.p?skuId=6430161",
+      "text": "Sold Out",
+      "invert": true
+    }
+  ]
+}
