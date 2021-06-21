@@ -1,15 +1,19 @@
+# https://docs.travis-ci.com/user/languages/go
 language: go
+dist: xenial
+os: linux
 go:
-  - "1.x"
-sudo: required
-services:
-  - docker
-before_install:
-  - go get -u github.com/golang/lint/golint
+  - "1.16"
+env:
+  - GO111MODULE=on
 script:
-  - golint -set_exit_status ./...
-  - go test ./...
-  - go build ./cmd/hayden
-  - go build ./cmd/haydend
-  - docker build cmd/hayden/
-  - docker build cmd/haydend/
+  - go test -v -cover ./...
+  - go vet ./...
+  - go install honnef.co/go/tools/cmd/staticcheck@latest
+  - staticcheck -go 1.16 ./...
+  - go get -v -u -d github.com/fzipp/gocyclo/cmd/gocyclo
+  - go run github.com/fzipp/gocyclo/cmd/gocyclo -avg .
+notifications:
+  email:
+    on_success: change
+    on_failure: change
