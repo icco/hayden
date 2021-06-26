@@ -50,8 +50,8 @@ github.com/andybalholm/cascadia v1.2.0/go.mod h1:YCyR8vOZT9aZ1CHEd8ap0gMVm2aFgxB
 github.com/benbjohnson/clock v1.0.3/go.mod h1:bGMdMPoPVvcYyt1gHDf4J2KE153Yf9BuiUKYMaxlTDM=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chromedp/cdproto v0.0.0-20210526005521-9e51b9051fd0/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
-github.com/chromedp/cdproto v0.0.0-20210618222025-4b0875cf6a9c h1:9pLQ11udLQB5WaGHxECRG8Pt1S/hdYH8+fN24txSgVY=
-github.com/chromedp/cdproto v0.0.0-20210618222025-4b0875cf6a9c/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
+github.com/chromedp/cdproto v0.0.0-20210625233425-810000e4a4fc h1:Gr9CJ/+rF6ZUXoP83j05KIh/HHBl3i3nXwXPqpLQaw0=
+github.com/chromedp/cdproto v0.0.0-20210625233425-810000e4a4fc/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
 github.com/chromedp/chromedp v0.7.3 h1:FvgJICfjvXtDX+miuMUY0NHuY8zQvjS/TcEQEG6Ldzs=
 github.com/chromedp/chromedp v0.7.3/go.mod h1:9gC521Yzgrk078Ulv6KIgG7hJ2x9aWrxMBBobTFk30A=
 github.com/chromedp/sysutil v1.0.0 h1:+ZxhTpfpZlmchB58ih/LBHX52ky7w2VhQVKQMucy3Ic=
