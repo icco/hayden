@@ -45,6 +45,7 @@ func main() {
 		log.Fatalw("could not parse config file", "configfile", configFile, zap.Error(err))
 	}
 	cf.Config.Log = log
+	log.Debugw("loaded config", "config", cf)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
