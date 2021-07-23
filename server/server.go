@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/icco/gutil/logging"
 	"github.com/icco/hayden"
+	"github.com/icco/hayden/server/static"
 	"go.uber.org/zap"
 )
 
@@ -28,9 +28,6 @@ var (
 </body>
 </html>
 `
-
-	//go:embed config.json
-	configFile []byte
 )
 
 func main() {
@@ -40,6 +37,10 @@ func main() {
 	}
 	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
 
+	configFile, err := static.Content.ReadFile("config.json")
+	if err != nil {
+		log.Fatalw("could not read config file", zap.Error(err))
+	}
 	cf, err := hayden.ParseConfigFile(configFile)
 	if err != nil {
 		log.Fatalw("could not parse config file", "configfile", configFile, zap.Error(err))
@@ -71,6 +72,8 @@ func main() {
 			log.Errorw("could not write response", zap.Error(err))
 		}
 	})
+
+	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
 	r.Get("/force", func(w http.ResponseWriter, r *http.Request) {
 		go func() {
