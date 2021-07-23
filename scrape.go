@@ -14,7 +14,7 @@ import (
 func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bool, error) {
 	cctx, ccancel := chromedp.NewContext(
 		ctx,
-		chromedp.WithLogf(cfg.Log.Debugf),
+		chromedp.WithLogf(cfg.Log.Infof),
 	)
 	defer ccancel()
 
@@ -25,7 +25,6 @@ func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bo
 	if err := chromedp.Run(
 		tctx,
 		chromedp.Navigate(target.String()),
-		chromedp.WaitVisible(`body`),
 		chromedp.InnerHTML(`body`, &htmlContent, chromedp.ByJSPath),
 	); err != nil {
 		return false, fmt.Errorf("chrome error: %w", err)
