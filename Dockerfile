@@ -16,5 +16,6 @@ ENV NAT_ENV "production"
 ENV PORT 8080
 EXPOSE $PORT
 COPY --from=0 /go/bin/server .
+COPY ./start.sh .
 
-CMD ["./server"]
+CMD ["./start.sh"]
