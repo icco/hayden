@@ -15,6 +15,8 @@ func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bo
 	cctx, ccancel := chromedp.NewContext(
 		ctx,
 		chromedp.WithLogf(cfg.Log.Infof),
+		chromedp.WithDebugf(cfg.Log.Debugf),
+		chromedp.WithErrorf(cfg.Log.Errorf),
 	)
 	defer ccancel()
 
