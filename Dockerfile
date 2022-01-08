@@ -11,10 +11,13 @@ COPY . .
 RUN go build -v -o /go/bin/server ./server
 
 FROM chromedp/headless-shell:latest
+EXPOSE 9222
 
 ENV NAT_ENV "production"
+
 ENV PORT 8080
 EXPOSE $PORT
+
 COPY --from=0 /go/bin/server .
 COPY ./start.sh .
 
