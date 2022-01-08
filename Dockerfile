@@ -21,4 +21,4 @@ EXPOSE $PORT
 COPY --from=0 /go/bin/server .
 COPY ./start.sh .
 
-CMD ["./start.sh"]
+ENTRYPOINT ["./start.sh"]
