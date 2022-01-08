@@ -1,4 +1,4 @@
-FROM golang:1.16-buster
+FROM golang:1.17
 
 ENV GOPROXY="https://proxy.golang.org"
 ENV GO111MODULE="on"
@@ -12,9 +12,9 @@ RUN go build -v -o /go/bin/server ./server
 
 FROM chromedp/headless-shell:latest
 
-EXPOSE 8080
 ENV NAT_ENV "production"
 ENV PORT 8080
+EXPOSE $PORT
 COPY --from=0 /go/bin/server .
 
 CMD ["./server"]
