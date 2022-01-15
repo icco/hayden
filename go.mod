@@ -12,7 +12,7 @@ require (
 
 require (
 	github.com/andybalholm/cascadia v1.3.1 // indirect
-	github.com/chromedp/cdproto v0.0.0-20220106001210-12edfdeb56f8 // indirect
+	github.com/chromedp/cdproto v0.0.0-20220113222801-0725d94bb6ee // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
