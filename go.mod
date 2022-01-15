@@ -6,7 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/chromedp/chromedp v0.7.6
 	github.com/go-chi/chi/v5 v5.0.7
-	github.com/icco/gutil v0.0.0-20220103033153-df48b5793850
+	github.com/icco/gutil v0.0.0-20220115163816-b7b82159b0b6
 	go.uber.org/zap v1.20.0
 )
 
@@ -22,6 +22,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/net v0.0.0-20220107192237-5cfca573fb4d // indirect
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
+	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d // indirect
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
 )
