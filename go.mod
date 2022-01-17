@@ -6,7 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/chromedp/chromedp v0.7.6
 	github.com/go-chi/chi/v5 v5.0.7
-	github.com/icco/gutil v0.0.0-20220115171937-06fb917087d7
+	github.com/icco/gutil v0.0.0-20220117013958-c851cb44991d
 	go.uber.org/zap v1.20.0
 )
 
