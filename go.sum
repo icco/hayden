@@ -24,8 +24,6 @@ github.com/gobwas/pool v0.2.1/go.mod h1:q8bcK0KcYlCgd9e7WYLm9LpyS+YeLd8JVDW6Wezm
 github.com/gobwas/ws v1.1.0 h1:7RFti/xnNkMJnrK7D1yQ/iCIB5OrrY/54/H930kIbHA=
 github.com/gobwas/ws v1.1.0/go.mod h1:nzvNcVha5eUziGrbxFCo6qFIojQHjJV5cLYIbezhfL0=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
-github.com/icco/gutil v0.0.0-20220220010526-7c82f1ebf02d h1:0rfG17MhZkdsy5CzuOUU6NdB0CZH56Wh6axFD3K55e0=
-github.com/icco/gutil v0.0.0-20220220010526-7c82f1ebf02d/go.mod h1:Xc7MNR9CYQQS0qIRgqtTzbj81E8Sr7/46mnSO+jvoTM=
 github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec h1:RkTO2KddsDjcaJ8vGsp+L6wFsKXvlQrf7QEco45jIdE=
 github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec/go.mod h1:Xc7MNR9CYQQS0qIRgqtTzbj81E8Sr7/46mnSO+jvoTM=
 github.com/icco/zapdriver v1.4.0 h1:ACpofOtnSJT9eywNOoTuEhzo7YtFUGCc4xBXYFWYMkI=
