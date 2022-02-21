@@ -26,6 +26,8 @@ github.com/gobwas/ws v1.1.0/go.mod h1:nzvNcVha5eUziGrbxFCo6qFIojQHjJV5cLYIbezhfL
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/icco/gutil v0.0.0-20220220010526-7c82f1ebf02d h1:0rfG17MhZkdsy5CzuOUU6NdB0CZH56Wh6axFD3K55e0=
 github.com/icco/gutil v0.0.0-20220220010526-7c82f1ebf02d/go.mod h1:Xc7MNR9CYQQS0qIRgqtTzbj81E8Sr7/46mnSO+jvoTM=
+github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec h1:RkTO2KddsDjcaJ8vGsp+L6wFsKXvlQrf7QEco45jIdE=
+github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec/go.mod h1:Xc7MNR9CYQQS0qIRgqtTzbj81E8Sr7/46mnSO+jvoTM=
 github.com/icco/zapdriver v1.4.0 h1:ACpofOtnSJT9eywNOoTuEhzo7YtFUGCc4xBXYFWYMkI=
 github.com/icco/zapdriver v1.4.0/go.mod h1:M9vTLsSlL3ciV1RK6uK9O/0zAdqNNIZ3n74qdCHvAl8=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
