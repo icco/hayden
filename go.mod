@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/chromedp/chromedp v0.7.6
-	github.com/go-chi/chi/v5 v5.0.7
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/icco/gutil v0.0.0-20220221170217-9aa326c389ec
 	go.uber.org/zap v1.21.0
 )
