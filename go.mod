@@ -1,6 +1,6 @@
 module github.com/icco/hayden
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
@@ -22,6 +22,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
