@@ -33,15 +33,6 @@ type Target struct {
 	LastContentHash string     `json:"-"`
 }
 
-// EffectiveHook returns the target's own hook, falling back to the service
-// default.
-func (t *Target) EffectiveHook(cfg *Config) string {
-	if t.Hook != "" {
-		return t.Hook
-	}
-	return cfg.DefaultHook
-}
-
 // EffectivePeriod returns the scan interval, falling back to the service
 // default and finally to five minutes.
 func (t *Target) EffectivePeriod(cfg *Config) time.Duration {
