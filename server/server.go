@@ -185,7 +185,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		targets, err := store.List(r.Context())
 		if err != nil {
-			httpError(w, err, http.StatusInternalServerError)
+			httpError(w, err)
 			return
 		}
 		rows := make([]targetRow, 0, len(targets))
@@ -208,7 +208,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 	r.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
 		targets, err := store.List(r.Context())
 		if err != nil {
-			httpError(w, err, http.StatusInternalServerError)
+			httpError(w, err)
 			return
 		}
 		writeJSON(w, targets)
@@ -271,7 +271,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			t.LastMatched = false
 
 			if err := store.Create(r.Context(), &t); err != nil {
-				httpError(w, err, http.StatusInternalServerError)
+				httpError(w, err)
 				return
 			}
 			if err := scheduler.Reload(r.Context()); err != nil {
@@ -288,7 +288,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 				return
 			}
 			if err := store.Delete(r.Context(), uint(id)); err != nil {
-				httpError(w, err, http.StatusInternalServerError)
+				httpError(w, err)
 				return
 			}
 			if err := scheduler.Reload(r.Context()); err != nil {
@@ -329,7 +329,7 @@ func writeJSON(w http.ResponseWriter, data any) {
 	}
 }
 
-func httpError(w http.ResponseWriter, err error, code int) {
+func httpError(w http.ResponseWriter, err error) {
 	log.Errorw("request error", zap.Error(err))
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }

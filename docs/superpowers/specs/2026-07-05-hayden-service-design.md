@@ -1,7 +1,7 @@
 # Design: Promote `hayden` to a full-time service
 
 Date: 2026-07-05
-Status: Proposed
+Status: Phases 1–5 implemented
 
 ## Goal
 
@@ -82,11 +82,10 @@ Keep today's split: `hayden` (library) + `server/` (main), mirroring reportd.
       targets). Returns raw body bytes.
   - `match.go` — `Matcher` interface + implementations:
     - `substring` — current `Text` contains (default; back-compatible).
-    - `css` — goquery selector; matches if selector exists, or (if
-      `match_value` has a `selector::text`-style value) if the selected text
-      contains the expected string. Keep the rule simple and documented.
+    - `css` — goquery; matches if the selector selects ≥1 element.
     - `regex` — Go `regexp` against fetched content.
-    - `jsonpath` — JSON-path evaluation against fetched JSON body.
+    - `jsonpath` — gjson path; matches if it resolves to a non-null/non-false
+      value.
     - `invert` flips the boolean result.
   - `notify.go` — `Notifier`: POSTs a JSON payload to the target's `hook`
     (fallback `default-hook`). Owns the **notify decision**:
