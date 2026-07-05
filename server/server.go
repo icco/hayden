@@ -180,7 +180,12 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			if t.MatchType == "" {
 				t.MatchType = "substring"
 			}
-			if _, err := hayden.MatcherFor(t.MatchType); err != nil {
+			matcher, err := hayden.MatcherFor(t.MatchType)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if err := matcher.Validate(t.MatchValue); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
