@@ -112,6 +112,46 @@ func TestScanInvertNotifiesWhenAbsent(t *testing.T) {
 	}
 }
 
+func TestScanNotifyModeChange(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "c", URL: "http://x", MatchType: "substring", MatchValue: "hit", NotifyMode: "change", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte("a hit v1")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+
+	// First match → notify.
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 1 {
+		t.Fatalf("first scan calls = %d, want 1", fn.calls)
+	}
+
+	// Same content → no re-notify.
+	got, _ := s.Get(ctx, tg.ID)
+	if err := sc.Scan(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 1 {
+		t.Fatalf("unchanged content calls = %d, want 1", fn.calls)
+	}
+
+	// Changed content, still matching → notify again.
+	ff.content = []byte("a hit v2")
+	got, _ = s.Get(ctx, tg.ID)
+	if err := sc.Scan(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 2 {
+		t.Fatalf("changed content calls = %d, want 2", fn.calls)
+	}
+}
+
 func TestScanAllContinuesPastErrors(t *testing.T) {
 	s := NewStore(testDB(t))
 	ctx := context.Background()

@@ -10,19 +10,28 @@ import (
 	"time"
 )
 
-func TestShouldNotifyOnce(t *testing.T) {
+func TestShouldNotify(t *testing.T) {
 	cases := []struct {
-		lastMatched, matched, want bool
+		name        string
+		mode        string
+		lastMatched bool
+		lastHash    string
+		matched     bool
+		hash        string
+		want        bool
 	}{
-		{false, true, true},   // transition into match → notify
-		{true, true, false},   // still matching → no repeat
-		{true, false, false},  // no longer matching → no notify
-		{false, false, false}, // never matched
+		{"once transition", "once", false, "", true, "h1", true},
+		{"once repeat", "once", true, "h1", true, "h1", false},
+		{"once no match", "once", true, "h1", false, "h1", false},
+		{"change first", "change", false, "", true, "h1", true},
+		{"change new hash", "change", true, "h1", true, "h2", true},
+		{"change same hash", "change", true, "h1", true, "h1", false},
+		{"change no match", "change", true, "h1", false, "h2", false},
 	}
 	for _, c := range cases {
-		tg := &Target{LastMatched: c.lastMatched}
-		if got := ShouldNotify(tg, c.matched); got != c.want {
-			t.Errorf("ShouldNotify(last=%v, matched=%v) = %v, want %v", c.lastMatched, c.matched, got, c.want)
+		tg := &Target{NotifyMode: c.mode, LastMatched: c.lastMatched, LastContentHash: c.lastHash}
+		if got := ShouldNotify(tg, c.matched, c.hash); got != c.want {
+			t.Errorf("%s: ShouldNotify = %v, want %v", c.name, got, c.want)
 		}
 	}
 }

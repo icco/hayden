@@ -67,7 +67,15 @@ func (n HTTPNotifier) Notify(ctx context.Context, t *Target, ev Event) error {
 	return nil
 }
 
-// ShouldNotify implements notify-once: fire only on a no-match → match transition.
-func ShouldNotify(t *Target, matched bool) bool {
-	return matched && !t.LastMatched
+// ShouldNotify decides whether to fire, per the target's NotifyMode:
+//   - once (default): fire only on a no-match → match transition.
+//   - change: fire whenever matched content's hash differs from the last.
+func ShouldNotify(t *Target, matched bool, contentHash string) bool {
+	if !matched {
+		return false
+	}
+	if t.NotifyMode == "change" {
+		return contentHash != t.LastContentHash
+	}
+	return !t.LastMatched
 }

@@ -61,21 +61,22 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) error {
 		matched = !matched
 	}
 
-	t.LastContentHash = hashContent(content)
+	newHash := hashContent(content)
 	t.LastStatus = "ok"
 	t.LastError = ""
 
-	if ShouldNotify(t, matched) {
+	if ShouldNotify(t, matched, newHash) {
 		ev := Event{Target: t.Name, URL: t.URL, Matched: true, MatchedAt: now, MatchType: t.MatchType}
 		if err := sc.Notifier.Notify(ctx, t, ev); err != nil {
 			t.LastStatus = "error"
 			t.LastError = err.Error()
-			// Leave LastMatched unchanged so the next tick retries the notify.
+			// Leave LastMatched/LastContentHash unchanged so the next tick retries.
 			_ = sc.Store.SaveRunState(ctx, t)
 			return fmt.Errorf("notifying target %q: %w", t.Name, err)
 		}
 	}
 
+	t.LastContentHash = newHash
 	if matched {
 		t.LastMatched = true
 		t.LastMatchAt = &now
