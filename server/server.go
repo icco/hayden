@@ -50,7 +50,7 @@ func main() {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
-	r.Use(logging.Middleware(log.Desugar(), "icco-cloud"))
+	r.Use(logging.Middleware(log.Desugar()))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if _, err := w.Write([]byte("ok.")); err != nil {
