@@ -1,7 +1,9 @@
+// Package static embeds the server's static assets and seed config.
 package static
 
 import "embed"
 
-// Files holds our static content.
+// Content holds our embedded static content.
+//
 //go:embed *
 var Content embed.FS

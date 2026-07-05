@@ -1,3 +1,5 @@
+// Command server runs the hayden HTTP service: it serves health checks and a
+// status page, and triggers target scrapes on demand.
 package main
 
 import (
@@ -6,9 +8,9 @@ import (
 	"html/template"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/icco/gutil/logging"
 	"github.com/icco/hayden"
 	"github.com/icco/hayden/server/static"
@@ -49,34 +51,32 @@ func main() {
 	log.Debugw("loaded config", "config", cf)
 
 	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
-	r.Use(logging.Middleware(log.Desugar(), "icco-cloud"))
+	r.Use(logging.Middleware(log.Desugar()))
 
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := w.Write([]byte("ok.")); err != nil {
 			log.Errorw("could not write response", zap.Error(err))
 		}
 	})
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
 		tmpl, err := template.New("root").Parse(rootTmpl)
 		if err != nil {
 			log.Errorw("could not parse template", zap.Error(err))
+			return
 		}
 
 		if err := tmpl.Execute(w, nil); err != nil {
-			log.Errorw("could not write response", zap.Error(err))
-		}
-
-		if _, err := w.Write([]byte("ok.")); err != nil {
 			log.Errorw("could not write response", zap.Error(err))
 		}
 	})
 
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
-	r.Get("/force", func(w http.ResponseWriter, r *http.Request) {
-		go func() {
+	r.Get("/force", func(w http.ResponseWriter, _ *http.Request) {
+		// The scrape intentionally outlives the request, so use a fresh
+		// background context.
+		go func() { //nolint:contextcheck // background scan outlives the request
 			if err := cf.ScrapeTargets(context.Background()); err != nil {
 				log.Errorw("could not scrape", zap.Error(err))
 			}
@@ -87,5 +87,10 @@ func main() {
 		}
 	})
 
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	log.Fatal(srv.ListenAndServe())
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+// Find renders the target URL with headless chrome and reports whether the
+// search string is present.
 func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bool, error) {
 	cctx, ccancel := chromedp.NewContext(
 		ctx,
@@ -35,7 +37,8 @@ func (cfg *Config) Find(ctx context.Context, target *url.URL, search string) (bo
 	return cfg.scanHTMLContent(ctx, htmlContent, search)
 }
 
-func (cfg *Config) scanHTMLContent(ctx context.Context, html string, search string) (bool, error) {
+//nolint:unparam // stub: real matching (and a non-constant result) lands in the matching phase
+func (cfg *Config) scanHTMLContent(_ context.Context, html string, _ string) (bool, error) {
 	dom, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return false, err
