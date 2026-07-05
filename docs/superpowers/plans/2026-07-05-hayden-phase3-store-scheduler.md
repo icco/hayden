@@ -242,14 +242,14 @@ Commit: `feat: add Target gorm model and Postgres connection`
 
 **Files:** modify `.github/workflows/test.yml`; update the spec's icco.me note.
 
-- [ ] Add a `postgres:16` service to `test.yml` (reportd pattern) and `TEST_DATABASE_URL: postgres://hayden:hayden@localhost:5432/hayden_test?sslmode=disable`.
+- [ ] Add a `postgres:17` service to `test.yml` (reportd pattern) and `TEST_DATABASE_URL: postgres://hayden:hayden@localhost:5432/hayden_test?sslmode=disable`.
 - [ ] Update `docs/superpowers/specs/...-design.md` icco.me note: env is `HAYDEN_DATABASE_URL`; include the compose snippet (postgres service + env).
 - [ ] `go build ./... && go vet ./...` and run the full golangci-lint set clean. Commit: `ci: run tests against postgres; docs: db env + compose note`
 
 ## Local verification (real Postgres)
 
 ```bash
-docker run -d --rm --name hayden-pg -e POSTGRES_USER=hayden -e POSTGRES_PASSWORD=hayden -e POSTGRES_DB=hayden -p 5433:5432 postgres:16
+docker run -d --rm --name hayden-pg -e POSTGRES_USER=hayden -e POSTGRES_PASSWORD=hayden -e POSTGRES_DB=hayden -p 5433:5432 postgres:17
 export TEST_DATABASE_URL="postgres://hayden:hayden@localhost:5433/hayden?sslmode=disable"
 go test ./...
 # server smoke:
