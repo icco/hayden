@@ -12,13 +12,13 @@ import (
 )
 
 func main() {
-	fs := flag.NewFlagSetWithEnvPrefix(os.Args[0], "HAYDEN", 0)
-	databaseURL := fs.String("database_url", "", "Postgres connection string.")
+	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	databaseURL := fs.String("database_url", "", "Postgres connection string (env: DATABASE_URL).")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		log.Fatalf("parsing flags: %v", err)
 	}
 	if *databaseURL == "" {
-		log.Fatal("database_url is required (set HAYDEN_DATABASE_URL)")
+		log.Fatal("database_url is required (set DATABASE_URL)")
 	}
 
 	ctx := context.Background()

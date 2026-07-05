@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -41,13 +43,18 @@ var (
 )
 
 func main() {
-	fs := flag.NewFlagSetWithEnvPrefix(os.Args[0], "HAYDEN", 0)
-	databaseURL := fs.String("database_url", "", "Postgres connection string (e.g. postgres://user:pass@host/hayden).")
+	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	databaseURL := fs.String("database_url", "", "Postgres connection string (env: DATABASE_URL).")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		log.Fatalw("error parsing flags", zap.Error(err))
 	}
 	if *databaseURL == "" {
-		log.Fatalw("database_url is required (set HAYDEN_DATABASE_URL)")
+		log.Fatalw("database_url is required (set DATABASE_URL)")
+	}
+
+	apiToken := os.Getenv("HAYDEN_API_TOKEN")
+	if apiToken == "" {
+		log.Warnw("HAYDEN_API_TOKEN is unset; /targets writes and /force are unauthenticated")
 	}
 
 	port := "8080"
@@ -89,7 +96,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           router(ctx, store, scanner, scheduler),
+		Handler:           router(ctx, store, scanner, scheduler, apiToken),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -121,7 +128,7 @@ func loadConfig() *hayden.ConfigFile {
 	return cf
 }
 
-func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler) http.Handler {
+func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler, apiToken string) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logging.Middleware(log.Desugar()))
 
@@ -135,17 +142,6 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 		}
 	})
 
-	r.Post("/force", func(w http.ResponseWriter, _ *http.Request) {
-		// Fire-and-forget: the scan is bounded by the server's lifetime, not
-		// the request.
-		go func() { //nolint:contextcheck // scan outlives the request, bounded by baseCtx
-			if err := scanner.ScanAll(baseCtx); err != nil {
-				log.Warnw("force scan", zap.Error(err))
-			}
-		}()
-		writeText(w, "ok.")
-	})
-
 	r.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
 		targets, err := store.List(r.Context())
 		if err != nil {
@@ -155,70 +151,102 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 		writeJSON(w, targets)
 	})
 
-	r.Post("/targets", func(w http.ResponseWriter, r *http.Request) {
-		var t hayden.Target
-		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-			http.Error(w, "invalid JSON body", http.StatusBadRequest)
-			return
-		}
-		if t.URL == "" {
-			http.Error(w, "url is required", http.StatusBadRequest)
-			return
-		}
-		if t.MatchType == "" {
-			t.MatchType = "substring"
-		}
-		if _, err := hayden.MatcherFor(t.MatchType); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if t.FetchMode == "" {
-			t.FetchMode = "http"
-		}
-		if _, err := hayden.FetcherFor(t.FetchMode); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if t.NotifyMode == "" {
-			t.NotifyMode = "once"
-		}
-		// Server owns identity and run-state; ignore anything the client sent.
-		t.ID = 0
-		t.Enabled = true
-		t.LastRunAt, t.LastMatchAt = nil, nil
-		t.LastStatus, t.LastError, t.LastContentHash = "", "", ""
-		t.LastMatched = false
-
-		if err := store.Create(r.Context(), &t); err != nil {
-			httpError(w, err, http.StatusInternalServerError)
-			return
-		}
-		if err := scheduler.Reload(r.Context()); err != nil {
-			log.Warnw("scheduler reload after create", zap.Error(err))
-		}
-		w.WriteHeader(http.StatusCreated)
-		writeJSON(w, &t)
-	})
-
-	r.Delete("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
-		if err != nil {
-			http.Error(w, "invalid id", http.StatusBadRequest)
-			return
-		}
-		if err := store.Delete(r.Context(), uint(id)); err != nil {
-			httpError(w, err, http.StatusInternalServerError)
-			return
-		}
-		if err := scheduler.Reload(r.Context()); err != nil {
-			log.Warnw("scheduler reload after delete", zap.Error(err))
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
+	// Mutating routes cause outbound fetches; gate them with the API token when
+	// one is configured.
+	r.Group(func(pr chi.Router) {
+		if apiToken != "" {
+			pr.Use(requireToken(apiToken))
+		}
+
+		pr.Post("/force", func(w http.ResponseWriter, _ *http.Request) {
+			go func() { //nolint:contextcheck // scan outlives the request, bounded by baseCtx
+				if err := scanner.ScanAll(baseCtx); err != nil {
+					log.Warnw("force scan", zap.Error(err))
+				}
+			}()
+			writeText(w, "ok.")
+		})
+
+		pr.Post("/targets", func(w http.ResponseWriter, r *http.Request) {
+			var t hayden.Target
+			if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+				http.Error(w, "invalid JSON body", http.StatusBadRequest)
+				return
+			}
+			if t.URL == "" {
+				http.Error(w, "url is required", http.StatusBadRequest)
+				return
+			}
+			if t.MatchType == "" {
+				t.MatchType = "substring"
+			}
+			if _, err := hayden.MatcherFor(t.MatchType); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if t.FetchMode == "" {
+				t.FetchMode = "http"
+			}
+			if _, err := hayden.FetcherFor(t.FetchMode); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if t.NotifyMode == "" {
+				t.NotifyMode = "once"
+			}
+			// Server owns identity and run-state; ignore anything the client sent.
+			t.ID = 0
+			t.Enabled = true
+			t.LastRunAt, t.LastMatchAt = nil, nil
+			t.LastStatus, t.LastError, t.LastContentHash = "", "", ""
+			t.LastMatched = false
+
+			if err := store.Create(r.Context(), &t); err != nil {
+				httpError(w, err, http.StatusInternalServerError)
+				return
+			}
+			if err := scheduler.Reload(r.Context()); err != nil {
+				log.Warnw("scheduler reload after create", zap.Error(err))
+			}
+			w.WriteHeader(http.StatusCreated)
+			writeJSON(w, &t)
+		})
+
+		pr.Delete("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
+			id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+			if err != nil {
+				http.Error(w, "invalid id", http.StatusBadRequest)
+				return
+			}
+			if err := store.Delete(r.Context(), uint(id)); err != nil {
+				httpError(w, err, http.StatusInternalServerError)
+				return
+			}
+			if err := scheduler.Reload(r.Context()); err != nil {
+				log.Warnw("scheduler reload after delete", zap.Error(err))
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+	})
+
 	return r
+}
+
+// requireToken rejects requests without a matching Bearer token.
+func requireToken(token string) func(http.Handler) http.Handler {
+	want := []byte(token)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if subtle.ConstantTimeCompare([]byte(got), want) != 1 {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func writeText(w http.ResponseWriter, s string) {
