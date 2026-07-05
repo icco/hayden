@@ -1,6 +1,5 @@
-// Command server runs the hayden HTTP service: it stores watch targets in
-// Postgres, scans them on a schedule, fires a webhook on a match, and exposes a
-// small targets API so watches can be added without a rebuild.
+// Command server runs the hayden HTTP service: watch targets in Postgres,
+// scanned on a schedule, firing a webhook on a match, managed via a small API.
 package main
 
 import (
@@ -153,8 +152,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
-	// Mutating routes cause outbound fetches; gate them with the API token when
-	// one is configured.
+	// Mutating routes cause outbound fetches; gate them behind the API token.
 	r.Group(func(pr chi.Router) {
 		if apiToken != "" {
 			pr.Use(requireToken(apiToken))

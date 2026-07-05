@@ -31,8 +31,7 @@ func (s *Scheduler) periodFor(t *Target) time.Duration {
 	return t.EffectivePeriod(s.Cfg)
 }
 
-// Start launches a ticker goroutine for each enabled target. The context bounds
-// every scan; cancel it (or call Stop) to shut down.
+// Start launches a ticker per enabled target; cancel ctx or call Stop to end.
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

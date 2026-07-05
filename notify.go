@@ -23,8 +23,7 @@ type Notifier interface {
 	Notify(ctx context.Context, t *Target, ev Event) error
 }
 
-// HTTPNotifier POSTs the event as JSON to the target's hook, falling back to
-// DefaultHook when the target has none.
+// HTTPNotifier POSTs the event JSON to the target hook (or DefaultHook).
 type HTTPNotifier struct {
 	Client      *http.Client
 	DefaultHook string

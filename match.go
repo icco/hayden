@@ -16,8 +16,7 @@ func (substringMatcher) Match(content []byte, value string) (bool, error) {
 	return bytes.Contains(content, []byte(value)), nil
 }
 
-// MatcherFor returns the Matcher for a match type. css, regex, and jsonpath
-// arrive in a later phase.
+// MatcherFor returns the Matcher for a match type (substring today).
 func MatcherFor(matchType string) (Matcher, error) {
 	switch matchType {
 	case "substring", "":
