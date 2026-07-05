@@ -10,7 +10,7 @@ import (
 
 func TestHTTPFetcher(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprint(w, "hello world")
+		_, _ = fmt.Fprint(w, "hello world")
 	}))
 	defer srv.Close()
 

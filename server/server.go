@@ -1,89 +1,240 @@
-// Command server runs the hayden HTTP service: it serves health checks and a
-// status page, and triggers target scrapes on demand.
+// Command server runs the hayden HTTP service: it stores watch targets in
+// Postgres, scans them on a schedule, fires a webhook on a match, and exposes a
+// small targets API so watches can be added without a rebuild.
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/icco/gutil/logging"
 	"github.com/icco/hayden"
 	"github.com/icco/hayden/server/static"
+	"github.com/namsral/flag"
 	"go.uber.org/zap"
 )
 
 var (
 	log = logging.Must(logging.NewLogger(hayden.Service))
 
-	rootTmpl = `
+	rootTemplate = template.Must(template.New("root").Parse(`
 <html>
 <head>
 <title>Hayden</title>
 </head>
 <body>
 <h1>Scraper!</h1>
+<p>Watching web pages and firing webhooks on a match.</p>
 </body>
 </html>
-`
+`))
 )
 
 func main() {
+	fs := flag.NewFlagSetWithEnvPrefix(os.Args[0], "HAYDEN", 0)
+	databaseURL := fs.String("database_url", "", "Postgres connection string (e.g. postgres://user:pass@host/hayden).")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		log.Fatalw("error parsing flags", zap.Error(err))
+	}
+	if *databaseURL == "" {
+		log.Fatalw("database_url is required (set HAYDEN_DATABASE_URL)")
+	}
+
 	port := "8080"
 	if fromEnv := os.Getenv("PORT"); fromEnv != "" {
 		port = fromEnv
 	}
 	log.Infow("Starting up", "host", fmt.Sprintf("http://localhost:%s", port))
 
-	configFile, err := static.Content.ReadFile("config.json")
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	gdb, err := hayden.Connect(ctx, *databaseURL)
+	if err != nil {
+		log.Fatalw("could not connect to database", zap.Error(err))
+	}
+	if err := hayden.AutoMigrate(ctx, gdb); err != nil {
+		log.Fatalw("could not migrate database", zap.Error(err))
+	}
+	store := hayden.NewStore(gdb)
+
+	cf := loadConfig()
+	cf.Config.Log = log
+	if seeded, err := hayden.SeedConfig(ctx, store, cf); err != nil {
+		log.Fatalw("could not seed config", zap.Error(err))
+	} else if seeded > 0 {
+		log.Infow("seeded targets from config", "count", seeded)
+	}
+
+	notifier := hayden.HTTPNotifier{
+		Client:      &http.Client{Timeout: 15 * time.Second},
+		DefaultHook: cf.Config.DefaultHook,
+	}
+	scanner := &hayden.Scanner{Store: store, Notifier: notifier}
+	scheduler := &hayden.Scheduler{Scanner: scanner, Store: store, Cfg: cf.Config, Log: log}
+	if err := scheduler.Start(ctx); err != nil {
+		log.Fatalw("could not start scheduler", zap.Error(err))
+	}
+	defer scheduler.Stop()
+
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           router(ctx, store, scanner, scheduler),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		//nolint:contextcheck // fresh timeout context; the signal ctx is already canceled
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Warnw("server shutdown", zap.Error(err))
+		}
+	}()
+
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalw("server error", zap.Error(err))
+	}
+	log.Infow("shut down cleanly")
+}
+
+func loadConfig() *hayden.ConfigFile {
+	b, err := static.Content.ReadFile("config.json")
 	if err != nil {
 		log.Fatalw("could not read config file", zap.Error(err))
 	}
-	cf, err := hayden.ParseConfigFile(configFile)
+	cf, err := hayden.ParseConfigFile(b)
 	if err != nil {
-		log.Fatalw("could not parse config file", "configfile", configFile, zap.Error(err))
+		log.Fatalw("could not parse config file", zap.Error(err))
 	}
-	cf.Config.Log = log
-	log.Debugw("loaded config", "config", cf)
+	return cf
+}
 
+func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logging.Middleware(log.Desugar()))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		if _, err := w.Write([]byte("ok.")); err != nil {
-			log.Errorw("could not write response", zap.Error(err))
-		}
+		writeText(w, "ok.")
 	})
 
 	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		tmpl, err := template.New("root").Parse(rootTmpl)
+		if err := rootTemplate.Execute(w, nil); err != nil {
+			log.Errorw("could not render root", zap.Error(err))
+		}
+	})
+
+	r.Post("/force", func(w http.ResponseWriter, _ *http.Request) {
+		// Fire-and-forget: the scan is bounded by the server's lifetime, not
+		// the request.
+		go func() { //nolint:contextcheck // scan outlives the request, bounded by baseCtx
+			if err := scanner.ScanAll(baseCtx); err != nil {
+				log.Warnw("force scan", zap.Error(err))
+			}
+		}()
+		writeText(w, "ok.")
+	})
+
+	r.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
+		targets, err := store.List(r.Context())
 		if err != nil {
-			log.Errorw("could not parse template", zap.Error(err))
+			httpError(w, err, http.StatusInternalServerError)
 			return
 		}
+		writeJSON(w, targets)
+	})
 
-		if err := tmpl.Execute(w, nil); err != nil {
-			log.Errorw("could not write response", zap.Error(err))
+	r.Post("/targets", func(w http.ResponseWriter, r *http.Request) {
+		var t hayden.Target
+		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
 		}
+		if t.URL == "" {
+			http.Error(w, "url is required", http.StatusBadRequest)
+			return
+		}
+		if t.MatchType == "" {
+			t.MatchType = "substring"
+		}
+		if _, err := hayden.MatcherFor(t.MatchType); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if t.FetchMode == "" {
+			t.FetchMode = "http"
+		}
+		if _, err := hayden.FetcherFor(t.FetchMode); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if t.NotifyMode == "" {
+			t.NotifyMode = "once"
+		}
+		// Server owns identity and run-state; ignore anything the client sent.
+		t.ID = 0
+		t.Enabled = true
+		t.LastRunAt, t.LastMatchAt = nil, nil
+		t.LastStatus, t.LastError, t.LastContentHash = "", "", ""
+		t.LastMatched = false
+
+		if err := store.Create(r.Context(), &t); err != nil {
+			httpError(w, err, http.StatusInternalServerError)
+			return
+		}
+		if err := scheduler.Reload(r.Context()); err != nil {
+			log.Warnw("scheduler reload after create", zap.Error(err))
+		}
+		w.WriteHeader(http.StatusCreated)
+		writeJSON(w, &t)
+	})
+
+	r.Delete("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+		if err != nil {
+			http.Error(w, "invalid id", http.StatusBadRequest)
+			return
+		}
+		if err := store.Delete(r.Context(), uint(id)); err != nil {
+			httpError(w, err, http.StatusInternalServerError)
+			return
+		}
+		if err := scheduler.Reload(r.Context()); err != nil {
+			log.Warnw("scheduler reload after delete", zap.Error(err))
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
-	r.Get("/force", func(w http.ResponseWriter, _ *http.Request) {
-		// Scanning is rewired onto the store-backed scanner alongside the
-		// scheduler; this handler is a placeholder until then.
-		if _, err := w.Write([]byte("ok.")); err != nil {
-			log.Errorw("could not write response", zap.Error(err))
-		}
-	})
+	return r
+}
 
-	srv := &http.Server{
-		Addr:              ":" + port,
-		Handler:           r,
-		ReadHeaderTimeout: 5 * time.Second,
+func writeText(w http.ResponseWriter, s string) {
+	if _, err := w.Write([]byte(s)); err != nil {
+		log.Errorw("could not write response", zap.Error(err))
 	}
-	log.Fatal(srv.ListenAndServe())
+}
+
+func writeJSON(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Errorw("could not encode json", zap.Error(err))
+	}
+}
+
+func httpError(w http.ResponseWriter, err error, code int) {
+	log.Errorw("request error", zap.Error(err))
+	http.Error(w, http.StatusText(code), code)
 }

@@ -47,7 +47,7 @@ func (s *Scheduler) startLocked(ctx context.Context) error {
 		return err
 	}
 	for _, t := range targets {
-		tctx, cancel := context.WithCancel(ctx)
+		tctx, cancel := context.WithCancel(ctx) //nolint:gosec // cancel is retained in s.cancels and invoked by Stop
 		s.cancels = append(s.cancels, cancel)
 		s.wg.Add(1)
 		go s.run(tctx, t.ID, s.periodFor(t))
@@ -103,7 +103,7 @@ func (s *Scheduler) Reload(ctx context.Context) error {
 	s.Stop()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	base := s.base
+	base := s.base //nolint:contextcheck // s.base is the long-lived scan root, intentionally reused on reload
 	if base == nil {
 		base = ctx
 	}
