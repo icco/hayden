@@ -23,7 +23,7 @@ type Target struct {
 	NotifyMode string `gorm:"not null;default:once" json:"notify_mode"` // once (change in a later phase)
 	Hook       string `json:"hook,omitempty"`
 	Period     int    `json:"period,omitempty"` // seconds; 0 → Config.DefaultPeriod
-	Enabled    bool   `gorm:"not null;default:true" json:"enabled"`
+	Enabled    bool   `gorm:"not null" json:"enabled"` // defaulted to true in application code (gorm can't distinguish unset from false)
 
 	LastRunAt       *time.Time `json:"last_run_at,omitempty"`
 	LastStatus      string     `json:"last_status,omitempty"` // ok | error
