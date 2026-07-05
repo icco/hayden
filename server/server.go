@@ -22,24 +22,48 @@ import (
 	"github.com/icco/hayden"
 	"github.com/icco/hayden/server/static"
 	"github.com/namsral/flag"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
 )
 
 var (
 	log = logging.Must(logging.NewLogger(hayden.Service))
 
-	rootTemplate = template.Must(template.New("root").Parse(`
+	rootTemplate = template.Must(template.New("root").Parse(`<!doctype html>
 <html>
-<head>
-<title>Hayden</title>
+<head><title>Hayden</title>
+<style>body{font-family:sans-serif;margin:2rem}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left;font-size:14px}th{background:#f0f0f0}.err{color:#b00}</style>
 </head>
 <body>
-<h1>Scraper!</h1>
-<p>Watching web pages and firing webhooks on a match.</p>
+<h1>Hayden</h1>
+<p>Watching {{len .}} target(s).</p>
+<table>
+<thead><tr><th>Name</th><th>URL</th><th>Match</th><th>Status</th><th>Last run</th><th>Last match</th><th>Error</th></tr></thead>
+<tbody>
+{{range .}}<tr><td>{{.Name}}</td><td>{{.URL}}</td><td>{{.Match}}</td><td>{{.Status}}</td><td>{{.LastRun}}</td><td>{{.LastMatch}}</td><td class="err">{{.Error}}</td></tr>
+{{end}}</tbody>
+</table>
 </body>
 </html>
 `))
 )
+
+// targetRow is the display projection of a Target for the status page (no hook).
+type targetRow struct {
+	Name, URL, Match, Status, LastRun, LastMatch, Error string
+}
+
+func fmtTime(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return "—"
+	}
+	return t.UTC().Format("2006-01-02 15:04:05Z")
+}
 
 func main() {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -64,6 +88,22 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	registry := prometheus.NewRegistry()
+	exporter, err := otelprom.New(otelprom.WithRegisterer(registry))
+	if err != nil {
+		log.Fatalw("could not create metrics exporter", zap.Error(err))
+	}
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	otel.SetMeterProvider(mp)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		//nolint:contextcheck // fresh timeout context for shutdown
+		if err := mp.Shutdown(shutdownCtx); err != nil {
+			log.Warnw("meter provider shutdown", zap.Error(err))
+		}
+	}()
 
 	gdb, err := hayden.Connect(ctx, *databaseURL)
 	if err != nil {
@@ -93,9 +133,14 @@ func main() {
 	}
 	defer scheduler.Stop()
 
+	handler := otelhttp.NewHandler(
+		router(ctx, store, scanner, scheduler, apiToken, registry),
+		"hayden",
+		otelhttp.WithFilter(func(req *http.Request) bool { return req.URL.Path != "/metrics" }),
+	)
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           router(ctx, store, scanner, scheduler, apiToken),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -127,16 +172,35 @@ func loadConfig() *hayden.ConfigFile {
 	return cf
 }
 
-func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler, apiToken string) http.Handler {
+func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler, apiToken string, registry *prometheus.Registry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logging.Middleware(log.Desugar()))
+
+	r.Method(http.MethodGet, "/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeText(w, "ok.")
 	})
 
-	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		if err := rootTemplate.Execute(w, nil); err != nil {
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		targets, err := store.List(r.Context())
+		if err != nil {
+			httpError(w, err)
+			return
+		}
+		rows := make([]targetRow, 0, len(targets))
+		for _, t := range targets {
+			rows = append(rows, targetRow{
+				Name:      t.Name,
+				URL:       t.URL,
+				Match:     t.MatchType + ": " + t.MatchValue,
+				Status:    t.LastStatus,
+				LastRun:   fmtTime(t.LastRunAt),
+				LastMatch: fmtTime(t.LastMatchAt),
+				Error:     t.LastError,
+			})
+		}
+		if err := rootTemplate.Execute(w, rows); err != nil {
 			log.Errorw("could not render root", zap.Error(err))
 		}
 	})
@@ -144,7 +208,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 	r.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
 		targets, err := store.List(r.Context())
 		if err != nil {
-			httpError(w, err, http.StatusInternalServerError)
+			httpError(w, err)
 			return
 		}
 		writeJSON(w, targets)
@@ -180,7 +244,12 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			if t.MatchType == "" {
 				t.MatchType = "substring"
 			}
-			if _, err := hayden.MatcherFor(t.MatchType); err != nil {
+			matcher, err := hayden.MatcherFor(t.MatchType)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if err := matcher.Validate(t.MatchValue); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -202,7 +271,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			t.LastMatched = false
 
 			if err := store.Create(r.Context(), &t); err != nil {
-				httpError(w, err, http.StatusInternalServerError)
+				httpError(w, err)
 				return
 			}
 			if err := scheduler.Reload(r.Context()); err != nil {
@@ -219,7 +288,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 				return
 			}
 			if err := store.Delete(r.Context(), uint(id)); err != nil {
-				httpError(w, err, http.StatusInternalServerError)
+				httpError(w, err)
 				return
 			}
 			if err := scheduler.Reload(r.Context()); err != nil {
@@ -260,7 +329,7 @@ func writeJSON(w http.ResponseWriter, data any) {
 	}
 }
 
-func httpError(w http.ResponseWriter, err error, code int) {
+func httpError(w http.ResponseWriter, err error) {
 	log.Errorw("request error", zap.Error(err))
-	http.Error(w, http.StatusText(code), code)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }

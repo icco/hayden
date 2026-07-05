@@ -36,46 +36,55 @@ func (sc *Scanner) fetcher(t *Target) (Fetcher, error) {
 
 // Scan runs fetch → match → notify → persist. A failed notify leaves
 // LastMatched unchanged so the next tick retries.
-func (sc *Scanner) Scan(ctx context.Context, t *Target) error {
+func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
+	start := time.Now()
+	defer func() { recordScan(ctx, start, err) }()
+
 	now := sc.now()
 	t.LastRunAt = &now
 
-	fetcher, err := sc.fetcher(t)
-	if err != nil {
-		return sc.fail(ctx, t, err)
+	fetcher, ferr := sc.fetcher(t)
+	if ferr != nil {
+		return sc.fail(ctx, t, ferr)
 	}
-	content, err := fetcher.Fetch(ctx, t)
-	if err != nil {
-		return sc.fail(ctx, t, err)
+	content, ferr := fetcher.Fetch(ctx, t)
+	if ferr != nil {
+		return sc.fail(ctx, t, ferr)
 	}
 
-	matcher, err := MatcherFor(t.MatchType)
-	if err != nil {
-		return sc.fail(ctx, t, err)
+	matcher, ferr := MatcherFor(t.MatchType)
+	if ferr != nil {
+		return sc.fail(ctx, t, ferr)
 	}
-	matched, err := matcher.Match(content, t.MatchValue)
-	if err != nil {
-		return sc.fail(ctx, t, err)
+	matched, ferr := matcher.Match(content, t.MatchValue)
+	if ferr != nil {
+		return sc.fail(ctx, t, ferr)
 	}
 	if t.Invert {
 		matched = !matched
 	}
+	if matched {
+		metrics().matches.Add(ctx, 1)
+	}
 
-	t.LastContentHash = hashContent(content)
+	newHash := hashContent(content)
 	t.LastStatus = "ok"
 	t.LastError = ""
 
-	if ShouldNotify(t, matched) {
+	if ShouldNotify(t, matched, newHash) {
 		ev := Event{Target: t.Name, URL: t.URL, Matched: true, MatchedAt: now, MatchType: t.MatchType}
-		if err := sc.Notifier.Notify(ctx, t, ev); err != nil {
+		if nerr := sc.Notifier.Notify(ctx, t, ev); nerr != nil {
+			recordNotify(ctx, false)
 			t.LastStatus = "error"
-			t.LastError = err.Error()
-			// Leave LastMatched unchanged so the next tick retries the notify.
+			t.LastError = nerr.Error()
+			// Leave LastMatched/LastContentHash unchanged so the next tick retries.
 			_ = sc.Store.SaveRunState(ctx, t)
-			return fmt.Errorf("notifying target %q: %w", t.Name, err)
+			return fmt.Errorf("notifying target %q: %w", t.Name, nerr)
 		}
+		recordNotify(ctx, true)
 	}
 
+	t.LastContentHash = newHash
 	if matched {
 		t.LastMatched = true
 		t.LastMatchAt = &now
