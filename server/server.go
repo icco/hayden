@@ -3,7 +3,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -74,14 +73,8 @@ func main() {
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
 	r.Get("/force", func(w http.ResponseWriter, _ *http.Request) {
-		// The scrape intentionally outlives the request, so use a fresh
-		// background context.
-		go func() { //nolint:contextcheck // background scan outlives the request
-			if err := cf.ScrapeTargets(context.Background()); err != nil {
-				log.Errorw("could not scrape", zap.Error(err))
-			}
-		}()
-
+		// Scanning is rewired onto the store-backed scanner alongside the
+		// scheduler; this handler is a placeholder until then.
 		if _, err := w.Write([]byte("ok.")); err != nil {
 			log.Errorw("could not write response", zap.Error(err))
 		}
