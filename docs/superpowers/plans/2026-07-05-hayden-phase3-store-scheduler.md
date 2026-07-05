@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Postgres only. DB URL from `namsral/flag` `database_url` with env prefix `HAYDEN` → env var `HAYDEN_DATABASE_URL`. Required; fatal if empty.
+- Postgres only. DB URL from `namsral/flag` `database_url` with env prefix `HAYDEN` → env var `DATABASE_URL`. Required; fatal if empty.
 - No CGO (build stays `CGO_ENABLED=0`); the Postgres driver (pgx) is pure-Go, so do NOT add `gorm.io/driver/sqlite` (it needs CGO).
 - Server still listens `:8080`, answers `GET /healthz`, single container.
 - Match types beyond `substring`, the `http`↔`headless` distinction's headless correctness, and `notify_mode: change` are **Phase 4** — this plan ships `substring` + `once` + a working `http` fetch (and keeps the existing chromedp path as the `headless` adapter).
@@ -243,7 +243,7 @@ Commit: `feat: add Target gorm model and Postgres connection`
 **Files:** modify `.github/workflows/test.yml`; update the spec's icco.me note.
 
 - [ ] Add a `postgres:17` service to `test.yml` (reportd pattern) and `TEST_DATABASE_URL: postgres://hayden:hayden@localhost:5432/hayden_test?sslmode=disable`.
-- [ ] Update `docs/superpowers/specs/...-design.md` icco.me note: env is `HAYDEN_DATABASE_URL`; include the compose snippet (postgres service + env).
+- [ ] Update `docs/superpowers/specs/...-design.md` icco.me note: env is `DATABASE_URL`; include the compose snippet (postgres service + env).
 - [ ] `go build ./... && go vet ./...` and run the full golangci-lint set clean. Commit: `ci: run tests against postgres; docs: db env + compose note`
 
 ## Local verification (real Postgres)
@@ -253,7 +253,7 @@ docker run -d --rm --name hayden-pg -e POSTGRES_USER=hayden -e POSTGRES_PASSWORD
 export TEST_DATABASE_URL="postgres://hayden:hayden@localhost:5433/hayden?sslmode=disable"
 go test ./...
 # server smoke:
-HAYDEN_DATABASE_URL="$TEST_DATABASE_URL" PORT=8123 go run ./server &
+DATABASE_URL="$TEST_DATABASE_URL" PORT=8123 go run ./server &
 curl -s localhost:8123/healthz
 curl -s -XPOST localhost:8123/targets -d '{"name":"t","url":"https://example.com","match_type":"substring","match_value":"Example","fetch_mode":"http"}'
 curl -s localhost:8123/targets

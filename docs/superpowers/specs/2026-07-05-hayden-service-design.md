@@ -245,7 +245,7 @@ Plus HTTP server metrics via `otelhttp`.
 ## icco.me follow-up (out of this repo, noted for Nat)
 
 hayden now requires Postgres. Add a Postgres service and set
-`HAYDEN_DATABASE_URL` on the hayden container (env prefix `HAYDEN`, per the
+`DATABASE_URL` on the hayden container (env prefix `HAYDEN`, per the
 reportd/namsral pattern). The fixed contract (image, `:8080`, single app
 container) is untouched — Postgres is a sibling compose service.
 
@@ -254,7 +254,7 @@ services:
   hayden:
     image: ghcr.io/icco/hayden:main
     environment:
-      HAYDEN_DATABASE_URL: postgres://hayden:${HAYDEN_DB_PASSWORD}@hayden-db:5432/hayden?sslmode=disable
+      DATABASE_URL: postgres://hayden:${HAYDEN_DB_PASSWORD}@hayden-db:5432/hayden?sslmode=disable
     depends_on:
       - hayden-db
   hayden-db:
@@ -269,18 +269,17 @@ volumes:
   hayden-db-data:
 ```
 
-### Security posture (needs a decision before public exposure)
+### Security posture
 
-The targets API (`POST`/`DELETE /targets`) and `POST /force` are
-**unauthenticated** and cause the server to fetch **arbitrary user-supplied
-URLs** — fetching arbitrary URLs is hayden's purpose, so URL-allowlisting is
-not appropriate, but on a public host (`hayden.timeclimbers.com`) the open
-write API means anyone can add watches and make hayden issue outbound requests
-(blind SSRF probing; content is never returned or forwarded — the webhook
-payload carries only `matched`/`url`/`match_type`). Before/at public exposure,
-gate the mutating routes with either caddy auth (basic or forward-auth) in
-icco.me, or an app-level bearer token (e.g. `HAYDEN_API_TOKEN`) checked on
-`POST`/`DELETE`/`/force`. Recommended as Phase 3.5, ahead of Phase 4.
+The mutating routes (`POST`/`DELETE /targets`, `POST /force`) cause the server
+to fetch **arbitrary user-supplied URLs** — fetching arbitrary URLs is hayden's
+purpose, so URL-allowlisting is not appropriate. Instead these routes are gated
+by a bearer token: set `HAYDEN_API_TOKEN` and send `Authorization: Bearer
+<token>` (constant-time compared). When `HAYDEN_API_TOKEN` is unset the routes
+are open and the server logs a warning at startup, so **set it in production**
+(and/or front hayden with caddy auth). `GET /targets` and `/` stay public
+(read-only); tightening those is a later concern. Content is never returned or
+forwarded — the webhook payload carries only `matched`/`url`/`match_type`.
 
 ## Done when
 
