@@ -6,6 +6,7 @@ import (
 	"net/url"
 )
 
+// Target is a single web page to watch and the match that triggers its hook.
 type Target struct {
 	URL    string `json:"url"`
 	Text   string `json:"text"`
@@ -14,6 +15,7 @@ type Target struct {
 	Period int    `json:"period,omitempty"`
 }
 
+// Scan fetches the target and reports whether it matches, honoring Invert.
 func (t *Target) Scan(ctx context.Context, cfg *Config) (bool, error) {
 	u, err := url.Parse(t.URL)
 	if err != nil {
