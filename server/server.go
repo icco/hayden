@@ -22,6 +22,12 @@ import (
 	"github.com/icco/hayden"
 	"github.com/icco/hayden/server/static"
 	"github.com/namsral/flag"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
 )
 
@@ -65,6 +71,22 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	registry := prometheus.NewRegistry()
+	exporter, err := otelprom.New(otelprom.WithRegisterer(registry))
+	if err != nil {
+		log.Fatalw("could not create metrics exporter", zap.Error(err))
+	}
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(exporter))
+	otel.SetMeterProvider(mp)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		//nolint:contextcheck // fresh timeout context for shutdown
+		if err := mp.Shutdown(shutdownCtx); err != nil {
+			log.Warnw("meter provider shutdown", zap.Error(err))
+		}
+	}()
+
 	gdb, err := hayden.Connect(ctx, *databaseURL)
 	if err != nil {
 		log.Fatalw("could not connect to database", zap.Error(err))
@@ -93,9 +115,14 @@ func main() {
 	}
 	defer scheduler.Stop()
 
+	handler := otelhttp.NewHandler(
+		router(ctx, store, scanner, scheduler, apiToken, registry),
+		"hayden",
+		otelhttp.WithFilter(func(req *http.Request) bool { return req.URL.Path != "/metrics" }),
+	)
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           router(ctx, store, scanner, scheduler, apiToken),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -127,9 +154,11 @@ func loadConfig() *hayden.ConfigFile {
 	return cf
 }
 
-func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler, apiToken string) http.Handler {
+func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler, apiToken string, registry *prometheus.Registry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logging.Middleware(log.Desugar()))
+
+	r.Method(http.MethodGet, "/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeText(w, "ok.")
