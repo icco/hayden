@@ -34,18 +34,36 @@ import (
 var (
 	log = logging.Must(logging.NewLogger(hayden.Service))
 
-	rootTemplate = template.Must(template.New("root").Parse(`
+	rootTemplate = template.Must(template.New("root").Parse(`<!doctype html>
 <html>
-<head>
-<title>Hayden</title>
+<head><title>Hayden</title>
+<style>body{font-family:sans-serif;margin:2rem}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 8px;text-align:left;font-size:14px}th{background:#f0f0f0}.err{color:#b00}</style>
 </head>
 <body>
-<h1>Scraper!</h1>
-<p>Watching web pages and firing webhooks on a match.</p>
+<h1>Hayden</h1>
+<p>Watching {{len .}} target(s).</p>
+<table>
+<thead><tr><th>Name</th><th>URL</th><th>Match</th><th>Status</th><th>Last run</th><th>Last match</th><th>Error</th></tr></thead>
+<tbody>
+{{range .}}<tr><td>{{.Name}}</td><td>{{.URL}}</td><td>{{.Match}}</td><td>{{.Status}}</td><td>{{.LastRun}}</td><td>{{.LastMatch}}</td><td class="err">{{.Error}}</td></tr>
+{{end}}</tbody>
+</table>
 </body>
 </html>
 `))
 )
+
+// targetRow is the display projection of a Target for the status page (no hook).
+type targetRow struct {
+	Name, URL, Match, Status, LastRun, LastMatch, Error string
+}
+
+func fmtTime(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return "—"
+	}
+	return t.UTC().Format("2006-01-02 15:04:05Z")
+}
 
 func main() {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -164,8 +182,25 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 		writeText(w, "ok.")
 	})
 
-	r.Get("/", func(w http.ResponseWriter, _ *http.Request) {
-		if err := rootTemplate.Execute(w, nil); err != nil {
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		targets, err := store.List(r.Context())
+		if err != nil {
+			httpError(w, err, http.StatusInternalServerError)
+			return
+		}
+		rows := make([]targetRow, 0, len(targets))
+		for _, t := range targets {
+			rows = append(rows, targetRow{
+				Name:      t.Name,
+				URL:       t.URL,
+				Match:     t.MatchType + ": " + t.MatchValue,
+				Status:    t.LastStatus,
+				LastRun:   fmtTime(t.LastRunAt),
+				LastMatch: fmtTime(t.LastMatchAt),
+				Error:     t.LastError,
+			})
+		}
+		if err := rootTemplate.Execute(w, rows); err != nil {
 			log.Errorw("could not render root", zap.Error(err))
 		}
 	})
