@@ -68,8 +68,7 @@ func (n HTTPNotifier) Notify(ctx context.Context, t *Target, ev Event) error {
 	return nil
 }
 
-// ShouldNotify implements the notify-once rule: fire only on a no-match → match
-// transition. The "change" mode arrives in a later phase.
+// ShouldNotify implements notify-once: fire only on a no-match → match transition.
 func ShouldNotify(t *Target, matched bool) bool {
 	return matched && !t.LastMatched
 }

@@ -35,10 +35,8 @@ func ParseConfigFile(stream []byte) (*ConfigFile, error) {
 	return &cf, nil
 }
 
-// SeedConfig inserts the config file's targets into an empty store, applying
-// defaults. It is a no-op when the store already has targets, so it only takes
-// effect on a fresh database. Legacy targets default to headless fetching to
-// preserve prior behavior.
+// SeedConfig inserts the config file's targets into an empty store (no-op if it
+// already has any), defaulting legacy targets to headless fetching.
 func SeedConfig(ctx context.Context, store *Store, cf *ConfigFile) (int, error) {
 	n, err := store.Count(ctx)
 	if err != nil {

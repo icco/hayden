@@ -15,8 +15,7 @@ type Scheduler struct {
 	Cfg     *Config
 	Log     *zap.SugaredLogger
 
-	// PeriodFor overrides per-target period resolution (used in tests). When
-	// nil, the target's EffectivePeriod is used.
+	// PeriodFor overrides per-target period (tests); nil → EffectivePeriod.
 	PeriodFor func(*Target) time.Duration
 
 	mu      sync.Mutex

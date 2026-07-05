@@ -14,10 +14,9 @@ type Scanner struct {
 	Store    *Store
 	Notifier Notifier
 
-	// Fetcher, when set, overrides per-target fetch-mode resolution (used in
-	// tests). When nil, Scan resolves a Fetcher from the target's FetchMode.
+	// Fetcher overrides per-target resolution when set (tests); nil → FetcherFor.
 	Fetcher Fetcher
-	// Now, when set, overrides the clock (used in tests).
+	// Now overrides the clock (tests).
 	Now func() time.Time
 }
 
@@ -35,9 +34,8 @@ func (sc *Scanner) fetcher(t *Target) (Fetcher, error) {
 	return FetcherFor(t.FetchMode)
 }
 
-// Scan fetches the target, evaluates the match, notifies on a no-match→match
-// transition, and persists run-state. Notify failures leave LastMatched
-// unchanged so the next tick retries.
+// Scan runs fetch → match → notify → persist. A failed notify leaves
+// LastMatched unchanged so the next tick retries.
 func (sc *Scanner) Scan(ctx context.Context, t *Target) error {
 	now := sc.now()
 	t.LastRunAt = &now
