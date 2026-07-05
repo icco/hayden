@@ -244,9 +244,42 @@ Plus HTTP server metrics via `otelhttp`.
 
 ## icco.me follow-up (out of this repo, noted for Nat)
 
-Add to the icco.me compose for hayden: a Postgres service + `DATABASE_URL` env
-on the hayden container. Exact compose snippet to be provided when phase 3
-lands. The fixed contract (image, `:8080`, single app container) is untouched.
+hayden now requires Postgres. Add a Postgres service and set
+`DATABASE_URL` on the hayden container (env prefix `HAYDEN`, per the
+reportd/namsral pattern). The fixed contract (image, `:8080`, single app
+container) is untouched — Postgres is a sibling compose service.
+
+```yaml
+services:
+  hayden:
+    image: ghcr.io/icco/hayden:main
+    environment:
+      DATABASE_URL: postgres://hayden:${HAYDEN_DB_PASSWORD}@hayden-db:5432/hayden?sslmode=disable
+    depends_on:
+      - hayden-db
+  hayden-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: hayden
+      POSTGRES_PASSWORD: ${HAYDEN_DB_PASSWORD}
+      POSTGRES_DB: hayden
+    volumes:
+      - hayden-db-data:/var/lib/postgresql/data
+volumes:
+  hayden-db-data:
+```
+
+### Security posture
+
+The mutating routes (`POST`/`DELETE /targets`, `POST /force`) cause the server
+to fetch **arbitrary user-supplied URLs** — fetching arbitrary URLs is hayden's
+purpose, so URL-allowlisting is not appropriate. Instead these routes are gated
+by a bearer token: set `HAYDEN_API_TOKEN` and send `Authorization: Bearer
+<token>` (constant-time compared). When `HAYDEN_API_TOKEN` is unset the routes
+are open and the server logs a warning at startup, so **set it in production**
+(and/or front hayden with caddy auth). `GET /targets` and `/` stay public
+(read-only); tightening those is a later concern. Content is never returned or
+forwarded — the webhook payload carries only `matched`/`url`/`match_type`.
 
 ## Done when
 

@@ -3,6 +3,7 @@ package hayden
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"go.uber.org/zap"
 )
@@ -27,24 +28,41 @@ func ParseConfigFile(stream []byte) (*ConfigFile, error) {
 	if err := json.Unmarshal(stream, &cf); err != nil {
 		return nil, err
 	}
+	if cf.Config == nil {
+		cf.Config = &Config{}
+	}
 
 	return &cf, nil
 }
 
-// ScrapeTargets scans every configured target once, logging matches and
-// continuing past per-target errors.
-func (cf *ConfigFile) ScrapeTargets(ctx context.Context) error {
-	for _, t := range cf.Targets {
-		match, err := t.Scan(ctx, cf.Config)
-		if err != nil {
-			cf.Config.Log.Errorw("error on target", "target", t, zap.Error(err))
-			continue
-		}
-
-		if match {
-			cf.Config.Log.Infow("success on scan", "target", t)
-		}
+// SeedConfig inserts the config file's targets into an empty store (no-op if it
+// already has any), defaulting legacy targets to headless fetching.
+func SeedConfig(ctx context.Context, store *Store, cf *ConfigFile) (int, error) {
+	n, err := store.Count(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if n > 0 {
+		return 0, nil
 	}
 
-	return nil
+	seeded := 0
+	for _, t := range cf.Targets {
+		if t.MatchType == "" {
+			t.MatchType = "substring"
+		}
+		if t.FetchMode == "" {
+			t.FetchMode = "headless"
+		}
+		if t.NotifyMode == "" {
+			t.NotifyMode = "once"
+		}
+		t.Enabled = true
+		if err := store.Create(ctx, t); err != nil {
+			return seeded, fmt.Errorf("seeding target %q: %w", t.Name, err)
+		}
+		seeded++
+	}
+
+	return seeded, nil
 }

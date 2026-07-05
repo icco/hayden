@@ -11,6 +11,7 @@ RUN go mod download
 
 COPY . .
 RUN go build -ldflags="-s -w" -o /server ./server
+RUN go build -ldflags="-s -w" -o /migrate ./cmd/migrate
 
 # Final stage — headless-shell + server in one container (deploy contract).
 FROM chromedp/headless-shell@sha256:6b48adef158c57ef401977e1d18e4100c605b0407162e3d12f7c80b1b9bfdaaa
@@ -25,6 +26,7 @@ EXPOSE 8080
 
 WORKDIR /app
 COPY --from=builder /server .
+COPY --from=builder /migrate .
 COPY start.sh .
 
 ENTRYPOINT ["./start.sh"]
