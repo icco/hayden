@@ -8,7 +8,7 @@ require (
 	github.com/chromedp/chromedp v0.15.1
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/icco/gutil v0.0.0-20260630032459-de9e83f7fbb2
-	github.com/namsral/flag v1.7.4-pre
+	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tidwall/gjson v1.19.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0

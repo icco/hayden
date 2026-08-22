@@ -4,17 +4,18 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 
 	"github.com/icco/hayden"
-	"github.com/namsral/flag"
+	"github.com/peterbourgon/ff/v3"
 )
 
 func main() {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	databaseURL := fs.String("database_url", "", "Postgres connection string (env: DATABASE_URL).")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := ff.Parse(fs, os.Args[1:], ff.WithEnvVars()); err != nil {
 		log.Fatalf("parsing flags: %v", err)
 	}
 	if *databaseURL == "" {
