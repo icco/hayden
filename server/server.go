@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -21,7 +22,7 @@ import (
 	"github.com/icco/gutil/logging"
 	"github.com/icco/hayden"
 	"github.com/icco/hayden/server/static"
-	"github.com/namsral/flag"
+	"github.com/peterbourgon/ff/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -68,7 +69,7 @@ func fmtTime(t *time.Time) string {
 func main() {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	databaseURL := fs.String("database_url", "", "Postgres connection string (env: DATABASE_URL).")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := ff.Parse(fs, os.Args[1:], ff.WithEnvVars()); err != nil {
 		log.Fatalw("error parsing flags", zap.Error(err))
 	}
 	if *databaseURL == "" {
