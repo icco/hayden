@@ -4,7 +4,7 @@ Guidance for coding agents working on hayden.
 
 ## Project Overview
 
-A Go package and tool (`github.com/icco/hayden`) for image processing, color clustering, and palette extraction.
+A Go package and tool (`go.icco.me/hayden`) for image processing, color clustering, and palette extraction.
 
 ## Commands
 

@@ -1,4 +1,4 @@
-module github.com/icco/hayden
+module go.icco.me/hayden
 
 go 1.26
 

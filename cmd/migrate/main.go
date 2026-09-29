@@ -8,8 +8,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/icco/hayden"
 	"github.com/peterbourgon/ff/v3"
+	"go.icco.me/hayden"
 )
 
 func main() {

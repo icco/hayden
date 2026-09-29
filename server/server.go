@@ -20,11 +20,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/icco/gutil/logging"
-	"github.com/icco/hayden"
-	"github.com/icco/hayden/server/static"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.icco.me/hayden"
+	"go.icco.me/hayden/server/static"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
