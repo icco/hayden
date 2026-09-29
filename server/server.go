@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/icco/gutil/logging"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.icco.me/gutil/logging"
 	"go.icco.me/hayden"
 	"go.icco.me/hayden/server/static"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
