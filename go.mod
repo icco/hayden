@@ -6,7 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/andybalholm/cascadia v1.3.4
 	github.com/chromedp/chromedp v0.15.1
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/peterbourgon/ff/v3 v3.4.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tidwall/gjson v1.19.0
