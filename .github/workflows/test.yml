@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18-alpine
         env:
           POSTGRES_USER: hayden
           POSTGRES_PASSWORD: hayden
@@ -21,9 +21,9 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://hayden:hayden@localhost:5432/hayden_test?sslmode=disable
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Install dependencies

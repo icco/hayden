@@ -1,5 +1,5 @@
 # Build stage — static, CGO-free server binary.
-FROM golang:1.26 AS builder
+FROM golang:1.27 AS builder
 
 ENV GOPROXY="https://proxy.golang.org"
 ENV CGO_ENABLED=0
@@ -14,7 +14,7 @@ RUN go build -ldflags="-s -w" -o /server ./server
 RUN go build -ldflags="-s -w" -o /migrate ./cmd/migrate
 
 # Final stage — headless-shell + server in one container (deploy contract).
-FROM chromedp/headless-shell@sha256:3da74b0945e4f80f00f0310bcda9f76cee283539ebd200a053a7bebf3de89423
+FROM chromedp/headless-shell@sha256:7bee201478b2f6266aae01243740ee85c16281e32f42d3aed9fdf04f4eace7a1
 
 LABEL org.opencontainers.image.source=https://github.com/icco/hayden
 LABEL org.opencontainers.image.description="Watches web pages and fires a webhook on a match."
