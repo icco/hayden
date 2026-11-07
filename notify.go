@@ -95,7 +95,7 @@ func isDiscordWebhook(hook string) bool {
 	if err != nil {
 		return false
 	}
-	switch u.Hostname() {
+	switch strings.ToLower(u.Hostname()) {
 	case "discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com":
 		return strings.HasPrefix(u.Path, "/api/webhooks/")
 	}
@@ -109,7 +109,8 @@ func discordMessage(ev Event) map[string]any {
 	if ev.Match != "" {
 		content += ": " + ev.Match
 	}
-	content = excerpt(content+"\n"+ev.URL, 2000)
+	// Shorten the text, not the link; only an absurdly long URL gets cut.
+	content = excerpt(excerpt(content, max(0, 2000-len(ev.URL)-1))+"\n"+ev.URL, 2000)
 	return map[string]any{
 		"content":          content,
 		"allowed_mentions": map[string]any{"parse": []string{}},

@@ -110,3 +110,17 @@ func TestHTTPNotifierRedactsHookInErrors(t *testing.T) {
 		t.Errorf("error = %v, want one without the token", err)
 	}
 }
+
+func TestDiscordHelpers(t *testing.T) {
+	if !isDiscordWebhook("https://DISCORD.COM/api/webhooks/1/x") {
+		t.Error("uppercase discord host not recognized")
+	}
+	if isDiscordWebhook("https://discord.com/channels/1") {
+		t.Error("non-webhook discord path recognized")
+	}
+	url := "https://shop.example/m8"
+	msg := discordMessage(Event{Target: strings.Repeat("n", 3000), URL: url})["content"].(string)
+	if len(msg) > 2000 || !strings.HasSuffix(msg, "\n"+url) {
+		t.Errorf("content len %d, ends with url: %v", len(msg), strings.HasSuffix(msg, url))
+	}
+}
