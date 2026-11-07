@@ -52,3 +52,61 @@ func TestSchedulerScansOnTickAndStops(t *testing.T) {
 		t.Errorf("scans continued after Stop: %d -> %d", after, ff.count())
 	}
 }
+
+func TestSchedulerFirstDelay(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	s := &Scheduler{Now: func() time.Time { return now }}
+	ago := func(d time.Duration) *time.Time { v := now.Add(-d); return &v }
+
+	for _, tc := range []struct {
+		name    string
+		lastRun *time.Time
+		want    time.Duration
+	}{
+		{"never run", nil, 0},
+		{"mid period", ago(2 * time.Minute), 3 * time.Minute},
+		{"overdue", ago(time.Hour), 0},
+	} {
+		if got := s.firstDelay(&Target{LastRunAt: tc.lastRun}, 5*time.Minute); got != tc.want {
+			t.Errorf("%s: firstDelay = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+type blockingFetcher struct {
+	countingFetcher
+	release chan struct{}
+}
+
+func (f *blockingFetcher) Fetch(ctx context.Context, t *Target) ([]byte, error) {
+	<-f.release
+	return f.countingFetcher.Fetch(ctx, t)
+}
+
+func TestSchedulerSkipsTargetAlreadyScanning(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "t", URL: "http://x", MatchType: "substring", MatchValue: "zzz", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	bf := &blockingFetcher{release: make(chan struct{})}
+	sch := &Scheduler{Scanner: &Scanner{Store: s, Notifier: &fakeNotifier{}, Fetcher: bf}, Store: s, base: ctx}
+
+	done := make(chan struct{})
+	go func() { sch.scan(tg.ID); close(done) }()
+	for {
+		if _, ok := sch.busy.Load(tg.ID); ok {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	sch.scan(tg.ID)
+	close(bf.release)
+	<-done
+
+	if bf.count() != 1 {
+		t.Errorf("fetches = %d, want 1", bf.count())
+	}
+}
