@@ -84,27 +84,37 @@ func (s *Scheduler) run(ctx context.Context, id uint, period, delay time.Duratio
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			s.scan(id)
-			timer.Reset(period)
+			// select picks randomly when both are ready; don't start a scan after Stop or Reload.
+			if ctx.Err() != nil {
+				return
+			}
+			timer.Reset(s.scan(id, period))
 		}
 	}
 }
 
-// scan runs on the base context so a reload stops future ticks without
-// cancelling a scan that is already running.
-func (s *Scheduler) scan(id uint) {
+// scan runs a due target on the base context, so a reload stops future ticks
+// without cancelling a scan that is already running. It reloads the target first,
+// so a scan that finished after a reload still counts, and returns the wait until
+// the next one, measured from scan start.
+func (s *Scheduler) scan(id uint, period time.Duration) time.Duration {
 	ctx := s.base //nolint:contextcheck // s.base is the long-lived scan root
 	t, err := s.Store.Get(ctx, id)
 	if err != nil {
 		s.warn("scheduler: load target", id, err)
-		return
+		return period
 	}
 	if !t.Enabled {
-		return
+		return period
+	}
+	if wait := s.firstDelay(t, period); wait > 0 {
+		return wait
 	}
 	if err := s.Scanner.Scan(ctx, t); err != nil {
 		s.warn("scheduler: scan target", id, err)
 	}
+	// Floor the wait so a scan skipped by the busy guard doesn't spin on a stale last_run_at.
+	return max(s.firstDelay(t, period), time.Second)
 }
 
 func (s *Scheduler) warn(msg string, id uint, err error) {

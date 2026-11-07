@@ -72,3 +72,27 @@ func TestSchedulerFirstDelay(t *testing.T) {
 		}
 	}
 }
+
+func TestSchedulerScanSkipsTargetNotDue(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	recent := time.Now().Add(-time.Minute)
+	tg := &Target{Name: "t", URL: "http://x", MatchType: "substring", MatchValue: "zzz", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	tg.LastRunAt = &recent
+	if err := s.SaveRunState(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	ff := &countingFetcher{}
+	sch := &Scheduler{Scanner: &Scanner{Store: s, Notifier: &fakeNotifier{}, Fetcher: ff}, Store: s, base: ctx}
+	wait := sch.scan(tg.ID, 5*time.Minute)
+	if ff.count() != 0 {
+		t.Errorf("scanned a target that ran a minute ago")
+	}
+	if wait < 3*time.Minute || wait > 4*time.Minute {
+		t.Errorf("wait = %v, want about 4m", wait)
+	}
+}
