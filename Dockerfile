@@ -27,6 +27,6 @@ EXPOSE 8080
 WORKDIR /app
 COPY --from=builder /server .
 COPY --from=builder /migrate .
-COPY start.sh .
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-ENTRYPOINT ["./start.sh"]
+ENTRYPOINT ["./server"]
