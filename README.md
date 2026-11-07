@@ -44,4 +44,4 @@ curl -H "$AUTH" -X DELETE $H/targets/1
 
 The webhook body is JSON: `{"target", "url", "matched", "matched_at", "match_type"}`.
 
-`GET /` shows a status table, and `/metrics` serves Prometheus metrics.
+`GET /` (with the Bearer header) shows a status table, and `/metrics` serves Prometheus metrics. Package docs are on [pkg.go.dev](https://pkg.go.dev/go.icco.me/hayden).

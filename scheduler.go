@@ -23,7 +23,6 @@ type Scheduler struct {
 	mu      sync.Mutex
 	base    context.Context //nolint:containedctx // long-lived scan context, outlives each reload
 	cancels []context.CancelFunc
-	busy    sync.Map // target id → struct{}; one scan per target even across reloads
 	wg      sync.WaitGroup
 }
 
@@ -94,11 +93,6 @@ func (s *Scheduler) run(ctx context.Context, id uint, period, delay time.Duratio
 // scan runs on the base context so a reload stops future ticks without
 // cancelling a scan that is already running.
 func (s *Scheduler) scan(id uint) {
-	if _, running := s.busy.LoadOrStore(id, struct{}{}); running {
-		return
-	}
-	defer s.busy.Delete(id)
-
 	ctx := s.base //nolint:contextcheck // s.base is the long-lived scan root
 	t, err := s.Store.Get(ctx, id)
 	if err != nil {
