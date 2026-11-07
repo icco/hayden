@@ -52,11 +52,12 @@ func (headlessFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error
 	tctx, tcancel := context.WithTimeout(cctx, 150*time.Second)
 	defer tcancel()
 
-	var html string
-	if err := chromedp.Run(tctx,
-		chromedp.Navigate(target.URL),
-		chromedp.InnerHTML("body", &html, chromedp.ByJSPath),
-	); err != nil {
+	if err := chromedp.Do(tctx, chromedp.Navigate(target.URL)); err != nil {
+		return nil, fmt.Errorf("headless fetch %s: %w", target.URL, err)
+	}
+
+	html, err := chromedp.Run(tctx, chromedp.InnerHTML(chromedp.CSS("body")))
+	if err != nil {
 		return nil, fmt.Errorf("headless fetch %s: %w", target.URL, err)
 	}
 
