@@ -89,7 +89,7 @@ func (regexMatcher) Validate(value string) error {
 }
 
 // jsonpathMatcher matches when the gjson path resolves to a value that isn't
-// missing, null, or false; the matched text is that value's raw JSON.
+// missing, null, or false; the matched text is that value, unquoted for strings and raw JSON otherwise.
 type jsonpathMatcher struct{}
 
 func (m jsonpathMatcher) Match(content []byte, value string) (bool, error) {
@@ -101,7 +101,7 @@ func (jsonpathMatcher) Find(content []byte, value string) (string, bool, error) 
 	if !res.Exists() || res.Type == gjson.Null || res.Type == gjson.False {
 		return "", false, nil
 	}
-	return res.Raw, true, nil
+	return res.String(), true, nil
 }
 func (jsonpathMatcher) Validate(value string) error {
 	if value == "" {
