@@ -1,0 +1,17 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - misspell
+    - gosec
+    - errorlint
+    - noctx
+    - contextcheck
+    - nilerr
+    - wastedassign
+    - unparam
+    - copyloopvar
+    - intrange
+    - revive
+    - gocritic
+    - unconvert
