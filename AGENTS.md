@@ -4,14 +4,15 @@ Guidance for coding agents working on hayden.
 
 ## Project Overview
 
-A Go package and tool (`go.icco.me/hayden`) for image processing, color clustering, and palette extraction.
+A Go service (`go.icco.me/hayden`) that stores watch targets in Postgres, fetches each on a schedule (plain HTTP or headless Chrome), and POSTs a webhook when the page matches. `server/` is the HTTP API, `cmd/migrate` syncs the schema.
 
 ## Commands
 
 ```sh
-go test ./...    # Run tests
-go vet ./...     # Vet code
-go build .       # Build package / tool
+go build ./...
+go vet ./...
+TEST_DATABASE_URL=postgres://... go test ./...   # store-backed tests skip without it
+docker build .                                   # production image, includes headless-shell
 ```
 
 ## Conventions

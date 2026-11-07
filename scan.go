@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Scanner struct {
 	Fetcher Fetcher
 	// Now overrides the clock (tests).
 	Now func() time.Time
+
+	busy sync.Map // target id; one scan per target across the scheduler, /force, and reloads
 }
 
 func (sc *Scanner) now() time.Time {
@@ -34,9 +37,15 @@ func (sc *Scanner) fetcher(t *Target) (Fetcher, error) {
 	return FetcherFor(t.FetchMode)
 }
 
-// Scan runs fetch → match → notify → persist. A failed notify leaves
+// Scan runs fetch → match → notify → persist, and is a no-op while the same
+// target is already scanning. A failed notify leaves
 // LastMatched unchanged so the next tick retries.
 func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
+	if _, running := sc.busy.LoadOrStore(t.ID, struct{}{}); running {
+		return nil
+	}
+	defer sc.busy.Delete(t.ID)
+
 	start := time.Now()
 	defer func() { recordScan(ctx, start, err) }()
 

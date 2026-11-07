@@ -52,3 +52,23 @@ func TestSchedulerScansOnTickAndStops(t *testing.T) {
 		t.Errorf("scans continued after Stop: %d -> %d", after, ff.count())
 	}
 }
+
+func TestSchedulerFirstDelay(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	s := &Scheduler{Now: func() time.Time { return now }}
+	ago := func(d time.Duration) *time.Time { v := now.Add(-d); return &v }
+
+	for _, tc := range []struct {
+		name    string
+		lastRun *time.Time
+		want    time.Duration
+	}{
+		{"never run", nil, 0},
+		{"mid period", ago(2 * time.Minute), 3 * time.Minute},
+		{"overdue", ago(time.Hour), 0},
+	} {
+		if got := s.firstDelay(&Target{LastRunAt: tc.lastRun}, 5*time.Minute); got != tc.want {
+			t.Errorf("%s: firstDelay = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

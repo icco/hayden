@@ -10,6 +10,12 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+const (
+	// Many retailers reject Go's default User-Agent outright.
+	userAgent    = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+	maxBodyBytes = 10 << 20
+)
+
 // Fetcher retrieves the content of a target for matching.
 type Fetcher interface {
 	Fetch(ctx context.Context, target *Target) ([]byte, error)
@@ -24,6 +30,8 @@ func (f httpFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error) 
 		return nil, fmt.Errorf("building request for %s: %w", target.URL, err)
 	}
 
+	req.Header.Set("User-Agent", userAgent)
+
 	resp, err := f.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", target.URL, err)
@@ -34,7 +42,7 @@ func (f httpFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error) 
 		return nil, fmt.Errorf("fetching %s: status %d", target.URL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("reading body of %s: %w", target.URL, err)
 	}
@@ -46,7 +54,10 @@ func (f httpFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error) 
 type headlessFetcher struct{}
 
 func (headlessFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error) {
-	cctx, cancel := chromedp.NewContext(ctx)
+	actx, acancel := chromedp.NewExecAllocator(ctx, append(chromedp.DefaultExecAllocatorOptions[:], chromedp.UserAgent(userAgent))...)
+	defer acancel()
+
+	cctx, cancel := chromedp.NewContext(actx)
 	defer cancel()
 
 	tctx, tcancel := context.WithTimeout(cctx, 150*time.Second)
