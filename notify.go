@@ -16,6 +16,7 @@ type Event struct {
 	Matched   bool      `json:"matched"`
 	MatchedAt time.Time `json:"matched_at"`
 	MatchType string    `json:"match_type"`
+	Match     string    `json:"match,omitempty"` // the matched text, capped at 1000 bytes; empty for inverted targets
 }
 
 // Notifier delivers a match event for a target.
@@ -69,7 +70,7 @@ func (n HTTPNotifier) Notify(ctx context.Context, t *Target, ev Event) error {
 
 // ShouldNotify decides whether to fire, per the target's NotifyMode:
 //   - once (default): fire only on a no-match → match transition.
-//   - change: fire whenever matched content's hash differs from the last.
+//   - change: fire whenever the matched text differs from the last.
 func ShouldNotify(t *Target, matched bool, contentHash string) bool {
 	if !matched {
 		return false

@@ -33,15 +33,20 @@ curl -H "$AUTH" -X POST $H/targets -d '{
 }'
 curl -H "$AUTH" $H/targets
 curl -H "$AUTH" -X POST $H/force
+curl -H "$AUTH" -X PATCH $H/targets/1 -d '{"enabled": false}'
+curl -H "$AUTH" -X POST $H/targets/1/scan
+curl -H "$AUTH" $H/targets/1/scans
 curl -H "$AUTH" -X DELETE $H/targets/1
 ```
 
 - `fetch_mode`: `http` (default) or `headless` for pages rendered by JavaScript.
 - `match_type`: `substring` (default), `css`, `regex`, or `jsonpath` ([gjson syntax](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)).
 - `invert`: match when the value is absent.
-- `notify_mode`: `once` fires when a target starts matching, `change` fires whenever the page changes while it matches.
-- `hook`, `period` (seconds): override the defaults per target.
+- `notify_mode`: `once` fires when a target starts matching, `change` fires whenever the matched text changes (use `regex`, `css`, or `jsonpath`; a `substring` match never changes).
+- `hook`, `period` (seconds, up to one year): override the defaults per target.
 
-The webhook body is JSON: `{"target", "url", "matched", "matched_at", "match_type"}`.
+`PATCH` updates only the fields you send. `/targets/{id}/scans` returns the last 100 scans.
+
+The webhook body is JSON: `{"target", "url", "matched", "matched_at", "match_type", "match"}`, where `match` is the matched text (up to 1000 bytes, empty for inverted targets).
 
 `GET /` (with the Bearer header) shows a status table, and `/metrics` serves Prometheus metrics. Package docs are on [pkg.go.dev](https://pkg.go.dev/go.icco.me/hayden).

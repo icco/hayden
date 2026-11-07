@@ -33,7 +33,7 @@ func Connect(ctx context.Context, databaseURL string) (*gorm.DB, error) {
 
 // AutoMigrate syncs the schema with the current models; safe on every startup.
 func AutoMigrate(ctx context.Context, db *gorm.DB) error {
-	if err := db.WithContext(ctx).AutoMigrate(&Target{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&Target{}, &ScanRecord{}); err != nil {
 		return fmt.Errorf("auto-migrating: %w", err)
 	}
 

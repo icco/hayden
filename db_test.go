@@ -25,7 +25,7 @@ func testDB(t *testing.T) *gorm.DB {
 	if err := AutoMigrate(context.Background(), db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	t.Cleanup(func() { db.Exec("DROP TABLE IF EXISTS targets") })
+	t.Cleanup(func() { db.Exec("DROP TABLE IF EXISTS targets, scan_records") })
 
 	return db
 }

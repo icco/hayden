@@ -3,6 +3,7 @@ package hayden
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,7 +116,7 @@ func TestScanInvertNotifiesWhenAbsent(t *testing.T) {
 func TestScanNotifyModeChange(t *testing.T) {
 	s := NewStore(testDB(t))
 	ctx := context.Background()
-	tg := &Target{Name: "c", URL: "http://x", MatchType: "substring", MatchValue: "hit", NotifyMode: "change", Enabled: true}
+	tg := &Target{Name: "c", URL: "http://x", MatchType: "regex", MatchValue: `hit v\d`, NotifyMode: "change", Enabled: true}
 	if err := s.Create(ctx, tg); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,8 @@ func TestScanNotifyModeChange(t *testing.T) {
 		t.Fatalf("first scan calls = %d, want 1", fn.calls)
 	}
 
-	// Same content → no re-notify.
+	// Page changes outside the match → no re-notify.
+	ff.content = []byte("ad 2 a hit v1")
 	got, _ := s.Get(ctx, tg.ID)
 	if err := sc.Scan(ctx, got); err != nil {
 		t.Fatal(err)
@@ -166,6 +168,59 @@ func TestScanAllContinuesPastErrors(t *testing.T) {
 	}
 	if fn.calls != 1 {
 		t.Errorf("expected 1 notification, got %d", fn.calls)
+	}
+}
+
+func TestScanRecordsHistoryAndSnippet(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "h", URL: "http://x", MatchType: "regex", MatchValue: `\$\d+`, Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte("now $499")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.lastEv.Match != "$499" {
+		t.Errorf("event match = %q, want $499", fn.lastEv.Match)
+	}
+
+	ff.err = errors.New("boom")
+	_ = sc.Scan(ctx, tg)
+
+	scans, err := s.ListScans(ctx, tg.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scans) != 2 {
+		t.Fatalf("history len = %d, want 2", len(scans))
+	}
+	if scans[0].Status != "error" || scans[0].Error == "" {
+		t.Errorf("newest scan = %+v, want error", scans[0])
+	}
+	if scans[1].Status != "ok" || !scans[1].Matched || !scans[1].Notified || scans[1].Match != "$499" {
+		t.Errorf("oldest scan = %+v, want notified match", scans[1])
+	}
+}
+
+func TestRecordScanPrunes(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	for range historyLimit + 5 {
+		if err := s.RecordScan(ctx, &ScanRecord{TargetID: 7, Status: "ok"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scans, err := s.ListScans(ctx, 7, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(scans) != historyLimit {
+		t.Errorf("history len = %d, want %d", len(scans), historyLimit)
 	}
 }
 
@@ -206,5 +261,52 @@ func TestScanSkipsTargetAlreadyScanning(t *testing.T) {
 
 	if bf.count() != 1 {
 		t.Errorf("fetches = %d, want 1", bf.count())
+	}
+}
+
+func TestScanInvertChangeNotifiesAfterMiss(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "ic", URL: "http://x", MatchType: "substring", MatchValue: "sold out", Invert: true, NotifyMode: "change", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte("sold out")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	ff.content = []byte("in stock")
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 1 {
+		t.Errorf("calls = %d, want 1 once the pattern disappears", fn.calls)
+	}
+}
+
+func TestScanChangeSeesPastSnippetCap(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "long", URL: "http://x", MatchType: "regex", MatchValue: `x+y\d`, NotifyMode: "change", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := strings.Repeat("x", 2*maxSnippet)
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte(prefix + "y1")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	ff.content = []byte(prefix + "y2")
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 2 {
+		t.Errorf("calls = %d, want 2 when the match differs past the snippet cap", fn.calls)
 	}
 }

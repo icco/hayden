@@ -37,9 +37,9 @@ func (sc *Scanner) fetcher(t *Target) (Fetcher, error) {
 	return FetcherFor(t.FetchMode)
 }
 
-// Scan runs fetch → match → notify → persist, and is a no-op while the same
-// target is already scanning. A failed notify leaves
-// LastMatched unchanged so the next tick retries.
+// Scan runs fetch → match → notify → persist and appends the outcome to the
+// target's history. It is a no-op while the same target is already scanning.
+// A failed notify leaves LastMatched unchanged so the next tick retries.
 func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 	if _, running := sc.busy.LoadOrStore(t.ID, struct{}{}); running {
 		return nil
@@ -47,58 +47,73 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 	defer sc.busy.Delete(t.ID)
 
 	start := time.Now()
-	defer func() { recordScan(ctx, start, err) }()
+	rec := &ScanRecord{TargetID: t.ID}
+	defer func() {
+		recordScan(ctx, start, err)
+		rec.Status, rec.Error = "ok", ""
+		if err != nil {
+			rec.Status, rec.Error = "error", err.Error()
+		}
+		// A reload can cancel ctx mid-scan; the history row should still land.
+		hctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if herr := sc.Store.RecordScan(hctx, rec); herr != nil {
+			err = errors.Join(err, fmt.Errorf("recording scan history: %w", herr))
+		}
+	}()
 
 	now := sc.now()
 	t.LastRunAt = &now
 
-	fetcher, ferr := sc.fetcher(t)
-	if ferr != nil {
-		return sc.fail(ctx, t, ferr)
+	fetcher, err := sc.fetcher(t)
+	if err != nil {
+		return sc.fail(ctx, t, err)
 	}
-	content, ferr := fetcher.Fetch(ctx, t)
-	if ferr != nil {
-		return sc.fail(ctx, t, ferr)
+	content, err := fetcher.Fetch(ctx, t)
+	if err != nil {
+		return sc.fail(ctx, t, err)
 	}
 
-	matcher, ferr := MatcherFor(t.MatchType)
-	if ferr != nil {
-		return sc.fail(ctx, t, ferr)
+	matcher, err := MatcherFor(t.MatchType)
+	if err != nil {
+		return sc.fail(ctx, t, err)
 	}
-	matched, ferr := matcher.Match(content, t.MatchValue)
-	if ferr != nil {
-		return sc.fail(ctx, t, ferr)
+	snippet, matched, err := matcher.Find(content, t.MatchValue)
+	if err != nil {
+		return sc.fail(ctx, t, err)
 	}
 	if t.Invert {
-		matched = !matched
+		matched, snippet = !matched, ""
 	}
+	full := snippet
+	snippet = excerpt(snippet, maxSnippet)
+	rec.Matched, rec.Match = matched, snippet
 	if matched {
 		metrics().matches.Add(ctx, 1)
 	}
 
-	newHash := hashContent(content)
+	newHash := "" // distinct from any match, even an empty one
+	if matched {
+		newHash = hashContent([]byte(full))
+	}
 	t.LastStatus = "ok"
 	t.LastError = ""
 
 	if ShouldNotify(t, matched, newHash) {
-		ev := Event{Target: t.Name, URL: t.URL, Matched: true, MatchedAt: now, MatchType: t.MatchType}
+		ev := Event{Target: t.Name, URL: t.URL, Matched: true, MatchedAt: now, MatchType: t.MatchType, Match: snippet}
 		if nerr := sc.Notifier.Notify(ctx, t, ev); nerr != nil {
 			recordNotify(ctx, false)
-			t.LastStatus = "error"
-			t.LastError = nerr.Error()
 			// Leave LastMatched/LastContentHash unchanged so the next tick retries.
-			_ = sc.Store.SaveRunState(ctx, t)
-			return fmt.Errorf("notifying target %q: %w", t.Name, nerr)
+			return sc.fail(ctx, t, fmt.Errorf("notifying target %q: %w", t.Name, nerr))
 		}
 		recordNotify(ctx, true)
+		rec.Notified = true
 	}
 
 	t.LastContentHash = newHash
+	t.LastMatched = matched
 	if matched {
-		t.LastMatched = true
 		t.LastMatchAt = &now
-	} else {
-		t.LastMatched = false
 	}
 
 	return sc.Store.SaveRunState(ctx, t)
@@ -124,7 +139,9 @@ func (sc *Scanner) ScanAll(ctx context.Context) error {
 func (sc *Scanner) fail(ctx context.Context, t *Target, err error) error {
 	t.LastStatus = "error"
 	t.LastError = err.Error()
-	_ = sc.Store.SaveRunState(ctx, t)
+	if serr := sc.Store.SaveRunState(ctx, t); serr != nil {
+		return errors.Join(err, fmt.Errorf("saving run state: %w", serr))
+	}
 	return err
 }
 
