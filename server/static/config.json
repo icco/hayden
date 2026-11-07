@@ -1,6 +1,6 @@
 {
   "config": {
-    "default-hook": "https://relay.natwelch.com/hook",
+    "default-hook": "",
     "default-period": 300
   },
   "targets": []

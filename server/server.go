@@ -118,6 +118,12 @@ func main() {
 
 	cf := loadConfig()
 	cf.Config.Log = log
+	if hook := os.Getenv("HAYDEN_DEFAULT_HOOK"); hook != "" {
+		cf.Config.DefaultHook = hook
+	}
+	if cf.Config.DefaultHook == "" {
+		log.Warnw("no default hook; targets without their own hook cannot notify (set HAYDEN_DEFAULT_HOOK)")
+	}
 	if seeded, err := hayden.SeedConfig(ctx, store, cf); err != nil {
 		log.Fatalw("could not seed config", zap.Error(err))
 	} else if seeded > 0 {
