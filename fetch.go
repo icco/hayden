@@ -42,9 +42,12 @@ func (f httpFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error) 
 		return nil, fmt.Errorf("fetching %s: status %d", target.URL, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading body of %s: %w", target.URL, err)
+	}
+	if len(body) > maxBodyBytes {
+		return nil, fmt.Errorf("body of %s exceeds %d bytes", target.URL, maxBodyBytes)
 	}
 
 	return body, nil

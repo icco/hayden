@@ -48,3 +48,15 @@ func TestFetcherForUnsupported(t *testing.T) {
 		t.Error("expected error for unsupported fetch mode")
 	}
 }
+
+func TestHTTPFetcherRejectsOversizedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(make([]byte, maxBodyBytes+1))
+	}))
+	defer srv.Close()
+
+	f, _ := FetcherFor("http")
+	if _, err := f.Fetch(context.Background(), &Target{URL: srv.URL}); err == nil {
+		t.Error("expected error for body over the limit")
+	}
+}
