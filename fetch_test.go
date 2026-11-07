@@ -9,7 +9,11 @@ import (
 )
 
 func TestHTTPFetcher(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.UserAgent() != userAgent {
+			http.Error(w, "bad user agent", http.StatusForbidden)
+			return
+		}
 		_, _ = fmt.Fprint(w, "hello world")
 	}))
 	defer srv.Close()

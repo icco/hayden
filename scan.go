@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,8 @@ type Scanner struct {
 	Fetcher Fetcher
 	// Now overrides the clock (tests).
 	Now func() time.Time
+
+	busy sync.Map // target id; one scan per target across the scheduler, /force, and reloads
 }
 
 func (sc *Scanner) now() time.Time {
@@ -35,9 +38,14 @@ func (sc *Scanner) fetcher(t *Target) (Fetcher, error) {
 }
 
 // Scan runs fetch → match → notify → persist and appends the outcome to the
-// target's history. A failed notify leaves LastMatched unchanged so the next
-// tick retries.
+// target's history. It is a no-op while the same target is already scanning.
+// A failed notify leaves LastMatched unchanged so the next tick retries.
 func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
+	if _, running := sc.busy.LoadOrStore(t.ID, struct{}{}); running {
+		return nil
+	}
+	defer sc.busy.Delete(t.ID)
+
 	start := time.Now()
 	rec := &ScanRecord{TargetID: t.ID}
 	defer func() {
@@ -46,7 +54,10 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 		if err != nil {
 			rec.Status, rec.Error = "error", err.Error()
 		}
-		if herr := sc.Store.RecordScan(ctx, rec); herr != nil {
+		// A reload can cancel ctx mid-scan; the history row should still land.
+		hctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if herr := sc.Store.RecordScan(hctx, rec); herr != nil {
 			err = errors.Join(err, fmt.Errorf("recording scan history: %w", herr))
 		}
 	}()
@@ -80,7 +91,10 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 		metrics().matches.Add(ctx, 1)
 	}
 
-	newHash := hashContent([]byte(snippet))
+	newHash := "" // distinct from any match, even an empty one
+	if matched {
+		newHash = hashContent([]byte(snippet))
+	}
 	t.LastStatus = "ok"
 	t.LastError = ""
 

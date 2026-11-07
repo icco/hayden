@@ -59,7 +59,8 @@ func (cssMatcher) Find(content []byte, value string) (string, bool, error) {
 	if found.Length() == 0 {
 		return "", false, nil
 	}
-	return strings.Join(strings.Fields(found.Text()), " "), true, nil
+	texts := found.Map(func(_ int, s *goquery.Selection) string { return strings.Join(strings.Fields(s.Text()), " ") })
+	return strings.Join(texts, " | "), true, nil
 }
 func (cssMatcher) Validate(value string) error {
 	_, err := cascadia.Compile(value)

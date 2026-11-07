@@ -79,7 +79,7 @@ func main() {
 
 	apiToken := os.Getenv("HAYDEN_API_TOKEN")
 	if apiToken == "" {
-		log.Warnw("HAYDEN_API_TOKEN is unset; /targets writes and /force are unauthenticated")
+		log.Fatalw("HAYDEN_API_TOKEN is required")
 	}
 
 	port := "8080"
@@ -184,45 +184,43 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 		writeText(w, "ok.")
 	})
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		targets, err := store.List(r.Context())
-		if err != nil {
-			httpError(w, err)
-			return
-		}
-		rows := make([]targetRow, 0, len(targets))
-		for _, t := range targets {
-			rows = append(rows, targetRow{
-				Name:      t.Name,
-				URL:       t.URL,
-				Match:     t.MatchType + ": " + t.MatchValue,
-				Status:    t.LastStatus,
-				LastRun:   fmtTime(t.LastRunAt),
-				LastMatch: fmtTime(t.LastMatchAt),
-				Error:     t.LastError,
-			})
-		}
-		if err := rootTemplate.Execute(w, rows); err != nil {
-			log.Errorw("could not render root", zap.Error(err))
-		}
-	})
-
-	r.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
-		targets, err := store.List(r.Context())
-		if err != nil {
-			httpError(w, err)
-			return
-		}
-		writeJSON(w, targets)
-	})
-
 	r.Handle("/favicon.ico", http.FileServer(http.FS(static.Content)))
 
-	// Mutating routes cause outbound fetches; gate them behind the API token.
+	// Targets hold hook URLs and drive outbound fetches, so everything about them needs the token.
 	r.Group(func(pr chi.Router) {
-		if apiToken != "" {
-			pr.Use(requireToken(apiToken))
-		}
+		pr.Use(requireToken(apiToken))
+
+		pr.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			targets, err := store.List(r.Context())
+			if err != nil {
+				httpError(w, err)
+				return
+			}
+			rows := make([]targetRow, 0, len(targets))
+			for _, t := range targets {
+				rows = append(rows, targetRow{
+					Name:      t.Name,
+					URL:       t.URL,
+					Match:     t.MatchType + ": " + t.MatchValue,
+					Status:    t.LastStatus,
+					LastRun:   fmtTime(t.LastRunAt),
+					LastMatch: fmtTime(t.LastMatchAt),
+					Error:     t.LastError,
+				})
+			}
+			if err := rootTemplate.Execute(w, rows); err != nil {
+				log.Errorw("could not render root", zap.Error(err))
+			}
+		})
+
+		pr.Get("/targets", func(w http.ResponseWriter, r *http.Request) {
+			targets, err := store.List(r.Context())
+			if err != nil {
+				httpError(w, err)
+				return
+			}
+			writeJSON(w, targets)
+		})
 
 		pr.Post("/force", func(w http.ResponseWriter, _ *http.Request) {
 			go func() { //nolint:contextcheck // scan outlives the request, bounded by baseCtx

@@ -15,6 +15,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// maxPeriod is one year in seconds, far below where time.Duration overflows.
+const maxPeriod = 365 * 24 * 60 * 60
+
 // validateTarget fills defaults and rejects configs the scanner can't run.
 func validateTarget(t *hayden.Target) error {
 	if err := validateURL("url", t.URL); err != nil {
@@ -25,8 +28,8 @@ func validateTarget(t *hayden.Target) error {
 			return err
 		}
 	}
-	if t.Period < 0 {
-		return errors.New("period must not be negative")
+	if t.Period < 0 || t.Period > maxPeriod {
+		return fmt.Errorf("period must be between 0 and %d seconds", maxPeriod)
 	}
 	if t.MatchType == "" {
 		t.MatchType = "substring"

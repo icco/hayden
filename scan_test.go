@@ -222,3 +222,66 @@ func TestRecordScanPrunes(t *testing.T) {
 		t.Errorf("history len = %d, want %d", len(scans), historyLimit)
 	}
 }
+
+type blockingFetcher struct {
+	countingFetcher
+	release chan struct{}
+}
+
+func (f *blockingFetcher) Fetch(ctx context.Context, t *Target) ([]byte, error) {
+	<-f.release
+	return f.countingFetcher.Fetch(ctx, t)
+}
+
+func TestScanSkipsTargetAlreadyScanning(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "t", URL: "http://x", MatchType: "substring", MatchValue: "zzz", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	bf := &blockingFetcher{release: make(chan struct{})}
+	sc := &Scanner{Store: s, Notifier: &fakeNotifier{}, Fetcher: bf}
+
+	done := make(chan struct{})
+	go func() { _ = sc.Scan(ctx, tg); close(done) }()
+	for {
+		if _, ok := sc.busy.Load(tg.ID); ok {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if err := sc.Scan(ctx, &Target{ID: tg.ID}); err != nil {
+		t.Errorf("overlapping scan: %v", err)
+	}
+	close(bf.release)
+	<-done
+
+	if bf.count() != 1 {
+		t.Errorf("fetches = %d, want 1", bf.count())
+	}
+}
+
+func TestScanInvertChangeNotifiesAfterMiss(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "ic", URL: "http://x", MatchType: "substring", MatchValue: "sold out", Invert: true, NotifyMode: "change", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte("sold out")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	ff.content = []byte("in stock")
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 1 {
+		t.Errorf("calls = %d, want 1 once the pattern disappears", fn.calls)
+	}
+}

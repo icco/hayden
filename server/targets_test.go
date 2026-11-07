@@ -24,6 +24,7 @@ func TestValidateTarget(t *testing.T) {
 		"bad fetch":     {URL: "https://a.example", FetchMode: "pigeon"},
 		"bad notify":    {URL: "https://a.example", NotifyMode: "always"},
 		"negative wait": {URL: "https://a.example", Period: -1},
+		"huge period":   {URL: "https://a.example", Period: 9223372037},
 	} {
 		if err := validateTarget(tg); err == nil {
 			t.Errorf("%s: expected error", name)

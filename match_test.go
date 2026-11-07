@@ -77,7 +77,7 @@ func TestMatcherFind(t *testing.T) {
 	}{
 		{"substring", "substring", "hello world", "world", "world"},
 		{"css text", "css", `<p class="price"> $499
-		</p><p class="price">$549</p>`, ".price", "$499 $549"},
+		</p><p class="price">$549</p>`, ".price", "$499 | $549"},
 		{"regex", "regex", "now only $499.99!", `\$\d+\.\d+`, "$499.99"},
 		{"jsonpath", "jsonpath", `{"price":{"amount":499}}`, "price", `{"amount":499}`},
 		{"jsonpath string", "jsonpath", `{"name":"ps5"}`, "name", "ps5"},
