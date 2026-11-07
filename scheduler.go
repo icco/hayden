@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Scheduler runs one ticker per enabled target, scanning each on its period.
+// Scheduler runs one timer per enabled target, scanning each on its period.
 type Scheduler struct {
 	Scanner *Scanner
 	Store   *Store
@@ -17,9 +17,11 @@ type Scheduler struct {
 
 	// PeriodFor overrides per-target period (tests); nil → EffectivePeriod.
 	PeriodFor func(*Target) time.Duration
+	// Now overrides the clock (tests).
+	Now func() time.Time
 
 	mu      sync.Mutex
-	base    context.Context //nolint:containedctx // long-lived scan context, re-derived per target on reload
+	base    context.Context //nolint:containedctx // long-lived scan context, outlives each reload
 	cancels []context.CancelFunc
 	wg      sync.WaitGroup
 }
@@ -31,7 +33,24 @@ func (s *Scheduler) periodFor(t *Target) time.Duration {
 	return t.EffectivePeriod(s.Cfg)
 }
 
-// Start launches a ticker per enabled target; cancel ctx or call Stop to end.
+func (s *Scheduler) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
+}
+
+// firstDelay waits out the rest of the target's current period, so restarts and
+// reloads neither rescan early nor push the next scan back a full period.
+func (s *Scheduler) firstDelay(t *Target, period time.Duration) time.Duration {
+	if t.LastRunAt == nil {
+		return 0
+	}
+	return max(0, t.LastRunAt.Add(period).Sub(s.now()))
+}
+
+// Start launches a timer per enabled target; cancel ctx or call Stop to end.
+// Scans run on ctx, so cancelling it also aborts in-flight scans.
 func (s *Scheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -45,37 +64,46 @@ func (s *Scheduler) startLocked(ctx context.Context) error {
 		return err
 	}
 	for _, t := range targets {
-		tctx, cancel := context.WithCancel(ctx) //nolint:gosec // cancel is retained in s.cancels and invoked by Stop
+		tctx, cancel := context.WithCancel(ctx) //nolint:gosec // cancel is retained in s.cancels and invoked by Stop/Reload
 		s.cancels = append(s.cancels, cancel)
+		period := s.periodFor(t)
 		s.wg.Add(1)
-		go s.run(tctx, t.ID, s.periodFor(t))
+		go s.run(tctx, t.ID, period, s.firstDelay(t, period))
 	}
 	return nil
 }
 
-func (s *Scheduler) run(ctx context.Context, id uint, period time.Duration) {
+func (s *Scheduler) run(ctx context.Context, id uint, period, delay time.Duration) {
 	defer s.wg.Done()
 
-	ticker := time.NewTicker(period)
-	defer ticker.Stop()
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			t, err := s.Store.Get(ctx, id)
-			if err != nil {
-				s.warn("scheduler: load target", id, err)
-				continue
-			}
-			if !t.Enabled {
-				continue
-			}
-			if err := s.Scanner.Scan(ctx, t); err != nil {
-				s.warn("scheduler: scan target", id, err)
-			}
+		case <-timer.C:
+			s.scan(id)
+			timer.Reset(period)
 		}
+	}
+}
+
+// scan runs on the base context so a reload stops future ticks without
+// cancelling a scan that is already running.
+func (s *Scheduler) scan(id uint) {
+	ctx := s.base //nolint:contextcheck // s.base is the long-lived scan root
+	t, err := s.Store.Get(ctx, id)
+	if err != nil {
+		s.warn("scheduler: load target", id, err)
+		return
+	}
+	if !t.Enabled {
+		return
+	}
+	if err := s.Scanner.Scan(ctx, t); err != nil {
+		s.warn("scheduler: scan target", id, err)
 	}
 }
 
@@ -85,25 +113,29 @@ func (s *Scheduler) warn(msg string, id uint, err error) {
 	}
 }
 
-// Stop cancels every ticker and waits for the goroutines to exit.
-func (s *Scheduler) Stop() {
-	s.mu.Lock()
+func (s *Scheduler) cancelLocked() {
 	for _, c := range s.cancels {
 		c()
 	}
 	s.cancels = nil
+}
+
+// Stop cancels every timer and waits for in-flight scans to finish.
+func (s *Scheduler) Stop() {
+	s.mu.Lock()
+	s.cancelLocked()
 	s.mu.Unlock()
 	s.wg.Wait()
 }
 
-// Reload restarts the tickers to reflect the current set of enabled targets.
+// Reload restarts the timers to reflect the current set of enabled targets. It
+// does not wait for in-flight scans, so it is safe to call from a request.
 func (s *Scheduler) Reload(ctx context.Context) error {
-	s.Stop()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	base := s.base //nolint:contextcheck // s.base is the long-lived scan root, intentionally reused on reload
-	if base == nil {
-		base = ctx
+	s.cancelLocked()
+	if s.base == nil {
+		s.base = ctx
 	}
-	return s.startLocked(base)
+	return s.startLocked(s.base) //nolint:contextcheck // s.base is the long-lived scan root
 }
