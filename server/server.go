@@ -281,7 +281,7 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			w.WriteHeader(http.StatusNoContent)
 		})
 
-		targetRoutes(pr, baseCtx, store, scanner, scheduler)
+		targetRoutes(baseCtx, pr, store, scanner, scheduler)
 	})
 
 	return r

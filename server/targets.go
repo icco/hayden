@@ -82,7 +82,7 @@ func loadTarget(w http.ResponseWriter, r *http.Request, store *hayden.Store) *ha
 }
 
 // targetRoutes registers the per-target routes beyond create and delete.
-func targetRoutes(pr chi.Router, baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler) {
+func targetRoutes(baseCtx context.Context, pr chi.Router, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler) {
 	pr.Get("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if t := loadTarget(w, r, store); t != nil {
 			writeJSON(w, t)
