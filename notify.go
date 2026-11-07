@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -40,14 +43,18 @@ func (n HTTPNotifier) Notify(ctx context.Context, t *Target, ev Event) error {
 		return fmt.Errorf("no hook configured for target %q", t.Name)
 	}
 
-	buf, err := json.Marshal(ev)
+	var body any = ev
+	if isDiscordWebhook(hook) {
+		body = discordMessage(ev)
+	}
+	buf, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshaling event: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, hook, bytes.NewReader(buf))
 	if err != nil {
-		return fmt.Errorf("building webhook request: %w", err)
+		return fmt.Errorf("building webhook request to %s: %w", hookHost(hook), redactURL(err, hook))
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -57,12 +64,12 @@ func (n HTTPNotifier) Notify(ctx context.Context, t *Target, ev Event) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("posting webhook to %s: %w", hook, err)
+		return fmt.Errorf("posting webhook to %s: %w", hookHost(hook), redactURL(err, hook))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("webhook to %s: status %d", hook, resp.StatusCode)
+		return fmt.Errorf("webhook to %s: status %d", hookHost(hook), resp.StatusCode)
 	}
 
 	return nil
@@ -79,4 +86,49 @@ func ShouldNotify(t *Target, matched bool, contentHash string) bool {
 		return contentHash != t.LastContentHash
 	}
 	return !t.LastMatched
+}
+
+// isDiscordWebhook reports whether hook is a Discord webhook URL, which needs a
+// Discord message body instead of the raw Event.
+func isDiscordWebhook(hook string) bool {
+	u, err := url.Parse(hook)
+	if err != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "discord.com", "discordapp.com", "ptb.discord.com", "canary.discord.com":
+		return strings.HasPrefix(u.Path, "/api/webhooks/")
+	}
+	return false
+}
+
+// discordMessage renders ev as a Discord webhook body, with mentions disabled so
+// page text like "@everyone" can't ping anyone.
+func discordMessage(ev Event) map[string]any {
+	content := fmt.Sprintf("%s matched", ev.Target)
+	if ev.Match != "" {
+		content += ": " + ev.Match
+	}
+	content = excerpt(content+"\n"+ev.URL, 2000)
+	return map[string]any{
+		"content":          content,
+		"allowed_mentions": map[string]any{"parse": []string{}},
+	}
+}
+
+// hookHost returns only the host of hook; webhook URLs often embed a secret token.
+func hookHost(hook string) string {
+	if u, err := url.Parse(hook); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return "hook"
+}
+
+// redactURL strips the full hook URL from a *url.Error so it can't leak into logs.
+func redactURL(err error, hook string) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		ue.URL = hookHost(hook)
+	}
+	return err
 }

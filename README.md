@@ -16,8 +16,9 @@ docker run -p 8080:8080 \
 | `DATABASE_URL` | yes | Postgres connection string. The schema migrates on startup. |
 | `HAYDEN_API_TOKEN` | yes | Bearer token for every route except `/healthz` and `/metrics`. |
 | `PORT` | no | Listen port, default `8080`. |
+| `HAYDEN_DEFAULT_HOOK` | no | Webhook for targets without their own `hook`. |
 
-The default hook and scan period live in [`server/static/config.json`](server/static/config.json).
+The default scan period (300s) lives in [`server/static/config.json`](server/static/config.json).
 
 ## Usage
 
@@ -48,5 +49,7 @@ curl -H "$AUTH" -X DELETE $H/targets/1
 `PATCH` updates only the fields you send. `/targets/{id}/scans` returns the last 100 scans.
 
 The webhook body is JSON: `{"target", "url", "matched", "matched_at", "match_type", "match"}`, where `match` is the matched text (up to 1000 bytes, empty for inverted targets).
+
+A Discord webhook URL (`https://discord.com/api/webhooks/...`) gets a Discord message instead: the target name, the matched text, and the URL, with mentions disabled.
 
 `GET /` (with the Bearer header) shows a status table, and `/metrics` serves Prometheus metrics. Package docs are on [pkg.go.dev](https://pkg.go.dev/go.icco.me/hayden).
