@@ -14,7 +14,7 @@ RUN go build -ldflags="-s -w" -o /server ./server
 RUN go build -ldflags="-s -w" -o /migrate ./cmd/migrate
 
 # Final stage — headless-shell + server in one container (deploy contract).
-FROM chromedp/headless-shell@sha256:7bee201478b2f6266aae01243740ee85c16281e32f42d3aed9fdf04f4eace7a1
+FROM chromedp/headless-shell@sha256:830fa77e0602cb42e5cb2cbd9237ba27b649ad69d5fb82b54713aac8b7ab4f29
 
 LABEL org.opencontainers.image.source=https://github.com/icco/hayden
 LABEL org.opencontainers.image.description="Watches web pages and fires a webhook on a match."
