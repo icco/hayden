@@ -30,6 +30,7 @@ import (
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 var (
@@ -238,31 +239,9 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 				http.Error(w, "invalid JSON body", http.StatusBadRequest)
 				return
 			}
-			if t.URL == "" {
-				http.Error(w, "url is required", http.StatusBadRequest)
-				return
-			}
-			if t.MatchType == "" {
-				t.MatchType = "substring"
-			}
-			matcher, err := hayden.MatcherFor(t.MatchType)
-			if err != nil {
+			if err := validateTarget(&t); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
-			}
-			if err := matcher.Validate(t.MatchValue); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			if t.FetchMode == "" {
-				t.FetchMode = "http"
-			}
-			if _, err := hayden.FetcherFor(t.FetchMode); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			if t.NotifyMode == "" {
-				t.NotifyMode = "once"
 			}
 			// Server owns identity and run-state; ignore anything the client sent.
 			t.ID = 0
@@ -289,6 +268,10 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 				return
 			}
 			if err := store.Delete(r.Context(), uint(id)); err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					http.Error(w, "target not found", http.StatusNotFound)
+					return
+				}
 				httpError(w, err)
 				return
 			}
@@ -297,6 +280,8 @@ func router(baseCtx context.Context, store *hayden.Store, scanner *hayden.Scanne
 			}
 			w.WriteHeader(http.StatusNoContent)
 		})
+
+		targetRoutes(pr, baseCtx, store, scanner, scheduler)
 	})
 
 	return r

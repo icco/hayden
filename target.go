@@ -45,3 +45,15 @@ func (t *Target) EffectivePeriod(cfg *Config) time.Duration {
 	}
 	return time.Duration(secs) * time.Second
 }
+
+// ScanRecord is one entry in a target's scan history.
+type ScanRecord struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	TargetID  uint      `gorm:"not null;index" json:"target_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Status    string    `gorm:"not null" json:"status"` // ok | error
+	Matched   bool      `json:"matched"`
+	Notified  bool      `json:"notified"`
+	Match     string    `json:"match,omitempty"`
+	Error     string    `json:"error,omitempty"`
+}

@@ -70,3 +70,22 @@ func TestMatcherForUnsupported(t *testing.T) {
 		}
 	}
 }
+
+func TestMatcherFind(t *testing.T) {
+	cases := []struct {
+		name, mt, content, value, want string
+	}{
+		{"substring", "substring", "hello world", "world", "world"},
+		{"css text", "css", `<p class="price"> $499
+		</p><p class="price">$549</p>`, ".price", "$499 $549"},
+		{"regex", "regex", "now only $499.99!", `\$\d+\.\d+`, "$499.99"},
+		{"jsonpath", "jsonpath", `{"price":{"amount":499}}`, "price", `{"amount":499}`},
+	}
+	for _, c := range cases {
+		m, _ := MatcherFor(c.mt)
+		got, ok, err := m.Find([]byte(c.content), c.value)
+		if err != nil || !ok || got != c.want {
+			t.Errorf("%s: Find = (%q, %v, %v), want %q", c.name, got, ok, err, c.want)
+		}
+	}
+}
