@@ -139,8 +139,8 @@ func excerpt(s string, n int) string {
 	return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "")
 }
 
-// boundedText joins each node's whitespace-normalized text with " | ", stopping
-// once limit bytes are written.
+// boundedText joins each node's whitespace-normalized text with " | ", reading
+// at most about limit bytes of text in total.
 func boundedText(nodes []*html.Node, limit int) string {
 	var b strings.Builder
 	for i, n := range nodes {
@@ -150,22 +150,18 @@ func boundedText(nodes []*html.Node, limit int) string {
 		if i > 0 {
 			b.WriteString(" | ")
 		}
-		first := true
+		// Concatenate raw text first so whitespace between text nodes survives normalization.
+		var raw strings.Builder
 		for d := range n.Descendants() {
-			if d.Type != html.TextNode {
-				continue
+			left := limit - b.Len() - raw.Len()
+			if left <= 0 {
+				break
 			}
-			for _, f := range strings.Fields(d.Data) {
-				if b.Len() >= limit {
-					return b.String()
-				}
-				if !first {
-					b.WriteByte(' ')
-				}
-				b.WriteString(f)
-				first = false
+			if d.Type == html.TextNode {
+				raw.WriteString(d.Data[:min(len(d.Data), left)])
 			}
 		}
+		b.WriteString(strings.Join(strings.Fields(raw.String()), " "))
 	}
 	return b.String()
 }

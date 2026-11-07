@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,6 +98,13 @@ func targetRoutes(baseCtx context.Context, pr chi.Router, store *hayden.Store, s
 	})
 
 	pr.Patch("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		// Read the body before locking so a slow client can't hold up other edits.
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		if err != nil || !json.Valid(body) {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
 		patchMu.Lock()
 		defer patchMu.Unlock()
 
@@ -106,7 +114,7 @@ func targetRoutes(baseCtx context.Context, pr chi.Router, store *hayden.Store, s
 		}
 		// Decoding over a copy applies only the fields the client sent.
 		t := *orig
-		if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+		if err := json.Unmarshal(body, &t); err != nil {
 			http.Error(w, "invalid JSON body", http.StatusBadRequest)
 			return
 		}

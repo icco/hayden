@@ -109,3 +109,12 @@ func TestBoundedTextAndExcerpt(t *testing.T) {
 		t.Errorf("excerpt = %q, want %q", e, "ab")
 	}
 }
+
+func TestBoundedTextKeepsNodeWhitespace(t *testing.T) {
+	m := cssMatcher{}
+	a, _, _ := m.Find([]byte(`<p>foo<span>bar</span></p>`), "p")
+	b, _, _ := m.Find([]byte(`<p>foo <span>bar</span></p>`), "p")
+	if a != "foobar" || b != "foo bar" {
+		t.Errorf("got %q and %q, want %q and %q", a, b, "foobar", "foo bar")
+	}
+}
