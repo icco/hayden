@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"go.icco.me/hayden"
@@ -86,6 +87,9 @@ func loadTarget(w http.ResponseWriter, r *http.Request, store *hayden.Store) *ha
 
 // targetRoutes registers the per-target routes beyond create and delete.
 func targetRoutes(baseCtx context.Context, pr chi.Router, store *hayden.Store, scanner *hayden.Scanner, scheduler *hayden.Scheduler) {
+	// PATCH is read-modify-write; serialize it so concurrent edits don't undo each other.
+	var patchMu sync.Mutex
+
 	pr.Get("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
 		if t := loadTarget(w, r, store); t != nil {
 			writeJSON(w, t)
@@ -93,6 +97,9 @@ func targetRoutes(baseCtx context.Context, pr chi.Router, store *hayden.Store, s
 	})
 
 	pr.Patch("/targets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		patchMu.Lock()
+		defer patchMu.Unlock()
+
 		orig := loadTarget(w, r, store)
 		if orig == nil {
 			return

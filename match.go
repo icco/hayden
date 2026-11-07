@@ -10,7 +10,12 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/andybalholm/cascadia"
 	"github.com/tidwall/gjson"
+	"golang.org/x/net/html"
 )
+
+// maxMatchText bounds the CSS text gathered for hashing, since nested selected
+// elements would otherwise repeat their descendants' text.
+const maxMatchText = 64 << 10
 
 // maxSnippet caps the matched text kept for webhooks, history, and change detection.
 const maxSnippet = 1000
@@ -59,8 +64,7 @@ func (cssMatcher) Find(content []byte, value string) (string, bool, error) {
 	if found.Length() == 0 {
 		return "", false, nil
 	}
-	texts := found.Map(func(_ int, s *goquery.Selection) string { return strings.Join(strings.Fields(s.Text()), " ") })
-	return strings.Join(texts, " | "), true, nil
+	return boundedText(found.Nodes, maxMatchText), true, nil
 }
 func (cssMatcher) Validate(value string) error {
 	_, err := cascadia.Compile(value)
@@ -127,9 +131,41 @@ func MatcherFor(matchType string) (Matcher, error) {
 	}
 }
 
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
+// excerpt caps s at n bytes and makes it storable in Postgres text: valid UTF-8, no NUL.
+func excerpt(s string, n int) string {
+	if len(s) > n {
+		s = s[:n]
 	}
-	return strings.ToValidUTF8(s[:n], "")
+	return strings.ReplaceAll(strings.ToValidUTF8(s, ""), "\x00", "")
+}
+
+// boundedText joins each node's whitespace-normalized text with " | ", stopping
+// once limit bytes are written.
+func boundedText(nodes []*html.Node, limit int) string {
+	var b strings.Builder
+	for i, n := range nodes {
+		if b.Len() >= limit {
+			break
+		}
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		first := true
+		for d := range n.Descendants() {
+			if d.Type != html.TextNode {
+				continue
+			}
+			for _, f := range strings.Fields(d.Data) {
+				if b.Len() >= limit {
+					return b.String()
+				}
+				if !first {
+					b.WriteByte(' ')
+				}
+				b.WriteString(f)
+				first = false
+			}
+		}
+	}
+	return b.String()
 }

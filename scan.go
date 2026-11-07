@@ -85,7 +85,8 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 	if t.Invert {
 		matched, snippet = !matched, ""
 	}
-	snippet = truncate(snippet, maxSnippet)
+	full := snippet
+	snippet = excerpt(snippet, maxSnippet)
 	rec.Matched, rec.Match = matched, snippet
 	if matched {
 		metrics().matches.Add(ctx, 1)
@@ -93,7 +94,7 @@ func (sc *Scanner) Scan(ctx context.Context, t *Target) (err error) {
 
 	newHash := "" // distinct from any match, even an empty one
 	if matched {
-		newHash = hashContent([]byte(snippet))
+		newHash = hashContent([]byte(full))
 	}
 	t.LastStatus = "ok"
 	t.LastError = ""

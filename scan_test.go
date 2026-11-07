@@ -3,6 +3,7 @@ package hayden
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -283,5 +284,29 @@ func TestScanInvertChangeNotifiesAfterMiss(t *testing.T) {
 	}
 	if fn.calls != 1 {
 		t.Errorf("calls = %d, want 1 once the pattern disappears", fn.calls)
+	}
+}
+
+func TestScanChangeSeesPastSnippetCap(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx := context.Background()
+	tg := &Target{Name: "long", URL: "http://x", MatchType: "regex", MatchValue: `x+y\d`, NotifyMode: "change", Enabled: true}
+	if err := s.Create(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+
+	prefix := strings.Repeat("x", 2*maxSnippet)
+	fn := &fakeNotifier{}
+	ff := &fakeFetcher{content: []byte(prefix + "y1")}
+	sc := &Scanner{Store: s, Notifier: fn, Fetcher: ff}
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	ff.content = []byte(prefix + "y2")
+	if err := sc.Scan(ctx, tg); err != nil {
+		t.Fatal(err)
+	}
+	if fn.calls != 2 {
+		t.Errorf("calls = %d, want 2 when the match differs past the snippet cap", fn.calls)
 	}
 }

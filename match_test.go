@@ -1,6 +1,9 @@
 package hayden
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMatchers(t *testing.T) {
 	cases := []struct {
@@ -88,5 +91,21 @@ func TestMatcherFind(t *testing.T) {
 		if err != nil || !ok || got != c.want {
 			t.Errorf("%s: Find = (%q, %v, %v), want %q", c.name, got, ok, err, c.want)
 		}
+	}
+}
+
+func TestBoundedTextAndExcerpt(t *testing.T) {
+	m := cssMatcher{}
+	got, _, _ := m.Find([]byte(`<b>1</b><b>23</b>`), "b")
+	if got != "1 | 23" {
+		t.Errorf("css text = %q, want %q", got, "1 | 23")
+	}
+	nested := strings.Repeat("<div>", 50) + strings.Repeat("word ", 20000) + strings.Repeat("</div>", 50)
+	got, _, _ = m.Find([]byte(nested), "div")
+	if len(got) > maxMatchText+100 {
+		t.Errorf("css text len = %d, want about %d", len(got), maxMatchText)
+	}
+	if e := excerpt("a\x00b\xff", 10); e != "ab" {
+		t.Errorf("excerpt = %q, want %q", e, "ab")
 	}
 }
