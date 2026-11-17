@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -82,7 +83,7 @@ func (headlessFetcher) Fetch(ctx context.Context, target *Target) ([]byte, error
 func FetcherFor(fetchMode string) (Fetcher, error) {
 	switch fetchMode {
 	case "http", "":
-		return httpFetcher{Client: &http.Client{Timeout: 30 * time.Second}}, nil
+		return httpFetcher{Client: &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport), Timeout: 30 * time.Second}}, nil
 	case "headless":
 		return headlessFetcher{}, nil
 	default:
