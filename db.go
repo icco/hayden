@@ -20,7 +20,7 @@ func Connect(ctx context.Context, databaseURL string) (*gorm.DB, error) {
 		return nil, fmt.Errorf("connecting to postgres: %w", err)
 	}
 
-	if err := db.Use(gormtracing.NewPlugin(gormtracing.WithoutMetrics())); err != nil {
+	if err := db.Use(gormtracing.NewPlugin(gormtracing.WithoutMetrics(), gormtracing.WithoutQueryVariables())); err != nil {
 		return nil, fmt.Errorf("registering tracing plugin: %w", err)
 	}
 
