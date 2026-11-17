@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.icco.me/gutil/logging"
+	"go.icco.me/gutil/tracing"
 	"go.icco.me/hayden"
 	"go.icco.me/hayden/server/static"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -91,6 +92,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	shutdownTracing, err := tracing.Init(ctx, hayden.Service)
+	if err != nil {
+		log.Fatalw("could not initialize tracing", zap.Error(err))
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			log.Warnw("failed to shutdown tracing", zap.Error(err))
+		}
+	}()
+
 	registry := prometheus.NewRegistry()
 	exporter, err := otelprom.New(otelprom.WithRegisterer(registry))
 	if err != nil {
@@ -131,7 +144,7 @@ func main() {
 	}
 
 	notifier := hayden.HTTPNotifier{
-		Client:      &http.Client{Timeout: 15 * time.Second},
+		Client:      &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport), Timeout: 15 * time.Second},
 		DefaultHook: cf.Config.DefaultHook,
 	}
 	scanner := &hayden.Scanner{Store: store, Notifier: notifier}
@@ -144,7 +157,7 @@ func main() {
 	handler := otelhttp.NewHandler(
 		router(ctx, store, scanner, scheduler, apiToken, registry),
 		"hayden",
-		otelhttp.WithFilter(func(req *http.Request) bool { return req.URL.Path != "/metrics" }),
+		otelhttp.WithFilter(func(req *http.Request) bool { return req.URL.Path != "/metrics" && req.URL.Path != "/healthz" }),
 	)
 	srv := &http.Server{
 		Addr:              ":" + port,

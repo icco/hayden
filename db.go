@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	gormtracing "gorm.io/plugin/opentelemetry/tracing"
 )
 
 // Connect opens a Postgres connection at databaseURL and verifies it with
@@ -17,6 +18,10 @@ func Connect(ctx context.Context, databaseURL string) (*gorm.DB, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("connecting to postgres: %w", err)
+	}
+
+	if err := db.Use(gormtracing.NewPlugin(gormtracing.WithoutMetrics())); err != nil {
+		return nil, fmt.Errorf("registering tracing plugin: %w", err)
 	}
 
 	sqlDB, err := db.DB()
