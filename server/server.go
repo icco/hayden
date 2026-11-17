@@ -144,7 +144,7 @@ func main() {
 	}
 
 	notifier := hayden.HTTPNotifier{
-		Client:      &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport), Timeout: 15 * time.Second},
+		Client:      &http.Client{Timeout: 15 * time.Second},
 		DefaultHook: cf.Config.DefaultHook,
 	}
 	scanner := &hayden.Scanner{Store: store, Notifier: notifier}
@@ -165,7 +165,9 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -178,6 +180,7 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalw("server error", zap.Error(err))
 	}
+	<-shutdownDone
 	log.Infow("shut down cleanly")
 }
 
